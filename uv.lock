@@ -335,7 +335,6 @@ name = "datasync"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "click" },
     { name = "django-environ" },
     { name = "dlt", extra = ["duckdb", "filesystem", "parquet", "s3"] },
     { name = "duckdb" },
@@ -359,7 +358,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "click", specifier = ">=8.3.0" },
     { name = "django-environ" },
     { name = "dlt", extras = ["duckdb", "filesystem", "parquet", "s3"], specifier = ">=1.17.1" },
     { name = "duckdb", specifier = ">=1.4.2" },
