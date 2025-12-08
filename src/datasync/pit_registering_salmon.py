@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 
-"""Main script."""
+"""Biomark PIT registering salmon data synchronization."""
 
 from datetime import datetime, timedelta
 
-import click
 import dlt
-import environ
 import requests
+import typer
 from dlt.destinations.impl.filesystem.factory import filesystem
 from dlt.sources.credentials import AwsCredentials
-from dlt.sources.rest_api import rest_api_source
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
 from .settings import (
     BIOMARK_ACCESS_KEY,
@@ -22,10 +22,18 @@ from .settings import (
     BIOMARK_PREFIX,
     BIOMARK_REGION,
     BIOMARK_SECRET_KEY,
+    log,
 )
-from .settings import log as logger
 
-env = environ.Env()
+app = typer.Typer()
+
+SITES = {
+    "kongsfjord": "0NK",
+    "sylte": "0NS",
+    "vigda": "0NV",
+    "agdenes": "0NA",
+    "vatne": "0NO",
+}
 
 
 def hex_to_decimal_tag(hex_tag):
@@ -57,204 +65,8 @@ def hex_to_decimal_tag(hex_tag):
         return None
 
 
-DEBUG = env.bool("DEBUG", default=False)
-DUCK_DB_NAME = env("DUCK_DB_NAME", default="pit_data_v4")
-
-
-SITES = {
-    "kongsfjord": "0NK",
-    "sylte": "0NS",
-    "vigda": "0NV",
-    "agdenes": "0NA",
-    "vatne": "0NO",
-}
-
-
-@click.command()
-@click.option(
-    "--place",
-    help=(
-        "Site location to download data from (kongsfjord, sylte, vigda, agdenes, vatne)"
-        "Not required if --all-locations is used."
-    ),
-    type=click.Choice(list(SITES.keys())),
-)
-@click.option("--begin_date", help="Start date for data download in YYYY-MM-DD format")
-@click.option("--end_date", help="End date for data download in YYYY-MM-DD format")
-@click.option("--tags", is_flag=True, help="Download only tags data")
-@click.option("--readers", is_flag=True, help="Download only readers voltage data")
-@click.option("--environment", is_flag=True, help="Download only environment data")
-@click.option(
-    "--all_locations", is_flag=True, help="Download data from all accessible locations"
-)
-@click.option(
-    "--skip_errors",
-    is_flag=True,
-    help="Continue processing other locations if one fails",
-)
-def main(
-    place, begin_date, end_date, tags, readers, environment, all_locations, skip_errors
-) -> None:
-    """Start the application."""
-
-    # validate that either place or all_locations is specified
-    if not all_locations and not place:
-        raise click.UsageError(
-            "Either --place must be specified or --all-locations flag must be used"
-        )
-
-    # validate that at least one data type is selected
-    if not any([tags, readers, environment]):
-        raise click.UsageError(
-            "At least one data type must be selected: "
-            "--tags, --readers, or --environment"
-        )
-
-    token = get_bearer_token()
-
-    # if there is no date set, take current day
-    if begin_date is None or end_date is None:
-        logger.info("Start date or end date is None, setting to today")
-        begin_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
-        end_date = datetime.today().strftime("%Y-%m-%d")
-
-    # determine which locations to process
-    if all_locations:
-        # skip 'vatne' (0NO) as it returns 403 Forbidden
-        accessible_sites = {k: v for k, v in SITES.items() if k != "vatne"}
-        locations_to_process = list(accessible_sites.items())
-        logger.info(
-            "Processing accessible locations: %s", list(accessible_sites.keys())
-        )
-        if skip_errors:
-            logger.info("Error handling enabled - will skip failed locations")
-    else:
-        locations_to_process = [(place, SITES[place])]
-        logger.info("Processing single location: %s", place)
-
-    # create resources for all selected locations
-    all_resources = []
-
-    for location_name, location_code in locations_to_process:
-        try:
-            if tags:
-                all_resources.append(
-                    {
-                        "name": f"tags_{location_name}",
-                        "write_disposition": "merge",
-                        "primary_key": ["tag", "detected_at"],
-                        "endpoint": {
-                            "path": f"tags/{location_code}",
-                            "params": {
-                                "begin_dt": begin_date,
-                                "end_dt": end_date,
-                            },
-                        },
-                    }
-                )
-
-            if readers:
-                all_resources.append(
-                    {
-                        "name": f"readers_voltage_{location_name}",
-                        "write_disposition": "merge",
-                        "primary_key": ["read_at"],
-                        "endpoint": {
-                            "path": f"reader/{location_code}",
-                            "params": {
-                                "begin_dt": begin_date,
-                                "end_dt": end_date,
-                            },
-                        },
-                    }
-                )
-
-            if environment:
-                all_resources.append(
-                    {
-                        "name": f"environment_data_{location_name}",
-                        "write_disposition": "merge",
-                        "primary_key": ["read_at"],
-                        "endpoint": {
-                            "path": f"enviro/{location_code}",
-                            "params": {
-                                "begin_dt": begin_date,
-                                "end_dt": end_date,
-                            },
-                        },
-                    }
-                )
-
-        except Exception as e:
-            if skip_errors:
-                logger.warning(f"Skipping {location_name} due to error: {e}")
-                continue
-            else:
-                raise
-
-    source = rest_api_source(
-        {
-            "client": {
-                "base_url": BIOMARK_BASE_URL,
-                "paginator": "single_page",
-                "auth": {
-                    "type": "bearer",
-                    "token": token,
-                },
-            },
-            "resources": all_resources,
-        }
-    )
-
-    credentials = AwsCredentials(
-        s3_url_style="path",
-        endpoint_url=BIOMARK_AWS_ENDPOINT,
-        aws_secret_access_key=BIOMARK_SECRET_KEY,
-        aws_access_key_id=BIOMARK_ACCESS_KEY,
-        region_name=BIOMARK_REGION,
-    )
-
-    pipeline = dlt.pipeline(
-        pipeline_name="biomark_pit_registering_salmon",
-        destination=filesystem(
-            bucket_url=f"s3://{BIOMARK_BUCKET}/" + BIOMARK_PREFIX,
-            credentials=credentials,
-            layout="{table_name}.{ext}",
-        ),
-        dataset_name="main",
-        progress="log",
-    )
-
-    if tags:
-
-        @dlt.transformer(primary_key=["tag", "detected_at"])
-        def add_decimal_tags(items):
-            """Transform tags to include decimal format."""
-            for item in items:
-                if isinstance(item, dict) and "tag" in item:
-                    item["tag_decimal"] = hex_to_decimal_tag(item["tag"])
-                yield item
-
-        # create list of resources, transforming tag resources
-        final_resources = []
-        for name, resource in source.resources.items():
-            if name.startswith("tags"):
-                # transform tag resources and keep the original name
-                transformed = resource | add_decimal_tags.with_name(name)
-                final_resources.append(transformed)
-            else:
-                final_resources.append(resource)
-
-        load_info = pipeline.run(final_resources)
-    else:
-        load_info = pipeline.run(source)
-
-    logger.info(load_info)
-
-
 def get_bearer_token():
-    """Get bearer token from API."""
-
+    """Get bearer token from Biomark API."""
     url = BIOMARK_BASE_URL + "token/"
 
     header = {
@@ -271,5 +83,215 @@ def get_bearer_token():
     return token
 
 
+def get_environmental_data(
+    client: RESTClient, location_code: str, begin_date: str, end_date: str
+):
+    """Fetch environmental data from Biomark API."""
+    log.debug("Fetching environmental data for location", location_code=location_code)
+    yield from client.paginate(
+        f"enviro/{location_code}",
+        method="get",
+        params={
+            "begin_dt": begin_date,
+            "end_dt": end_date,
+        },
+    )
+
+
+def get_tags_data(
+    client: RESTClient, location_code: str, begin_date: str, end_date: str
+):
+    """Fetch tags data from Biomark API."""
+    log.debug("Fetching tags data for location", location_code=location_code)
+    yield from client.paginate(
+        f"tags/{location_code}",
+        method="get",
+        params={
+            "begin_dt": begin_date,
+            "end_dt": end_date,
+        },
+    )
+
+
+def get_readers_voltage_data(
+    client: RESTClient, location_code: str, begin_date: str, end_date: str
+):
+    """Fetch readers voltage data from Biomark API."""
+    log.debug("Fetching readers voltage data for location", location_code=location_code)
+    yield from client.paginate(
+        f"reader/{location_code}",
+        method="get",
+        params={
+            "begin_dt": begin_date,
+            "end_dt": end_date,
+        },
+    )
+
+
+@dlt.transformer(primary_key=["tag", "detected_at"])
+def add_decimal_tags(items):
+    """Transform tags to include decimal format."""
+    for item in items:
+        if isinstance(item, dict) and "tag" in item:
+            item["tag_decimal"] = hex_to_decimal_tag(item["tag"])
+        yield item
+
+
+@dlt.source()
+def biomark_pit_salmon(
+    base_url: str = BIOMARK_BASE_URL,
+    begin_date: str = None,
+    end_date: str = None,
+    locations: list = None,
+    tags: bool = False,
+    readers: bool = False,
+    environment: bool = False,
+):
+    """Biomark PIT salmon data source."""
+
+    # get authentication token
+    token = get_bearer_token()
+
+    # create authenticated REST client
+    client = RESTClient(
+        base_url=base_url,
+        auth=BearerTokenAuth(token),
+    )
+
+    # set default dates if not provided
+    if begin_date is None or end_date is None:
+        log.info("Start date or end date is None, setting to yesterday")
+        begin_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date = datetime.today().strftime("%Y-%m-%d")
+
+    for location_name in locations:
+        location_code = SITES.get(location_name)
+        if not location_code:
+            log.warning(f"Unknown location: {location_name}")
+            continue
+
+        try:
+            if tags:
+                tags_resource = dlt.resource(
+                    get_tags_data(client, location_code, begin_date, end_date),
+                    name=f"tags_{location_name}",
+                    primary_key=["tag", "detected_at"],
+                    write_disposition="append",
+                )
+                # Apply decimal tag transformation
+                yield tags_resource | add_decimal_tags.with_name(
+                    f"tags_{location_name}"
+                )
+
+            if readers:
+                yield dlt.resource(
+                    get_readers_voltage_data(
+                        client, location_code, begin_date, end_date
+                    ),
+                    name=f"readers_voltage_{location_name}",
+                    primary_key=["read_at"],
+                    write_disposition="append",
+                )
+
+            if environment:
+                yield dlt.resource(
+                    get_environmental_data(client, location_code, begin_date, end_date),
+                    name=f"environment_data_{location_name}",
+                    primary_key=["read_at"],
+                    write_disposition="append",
+                )
+
+        except Exception as e:
+            log.error(f"Error processing {location_name}: {e}")
+            # continue with next location
+
+
+@app.command()
+def run(
+    place: str = typer.Option(
+        None, help="Site location (kongsfjord, sylte, vigda, agdenes, vatne)"
+    ),
+    begin_date: str = typer.Option(
+        None, help="Start date for data download in YYYY-MM-DD format"
+    ),
+    end_date: str = typer.Option(
+        None, help="End date for data download in YYYY-MM-DD format"
+    ),
+    tags: bool = typer.Option(False, help="Download tags data"),
+    readers: bool = typer.Option(False, help="Download readers voltage data"),
+    environment: bool = typer.Option(False, help="Download environment data"),
+    all_locations: bool = typer.Option(
+        False, help="Download data from all accessible locations"
+    ),
+    base_url: str = BIOMARK_BASE_URL,
+    bucket: str = BIOMARK_BUCKET,
+    prefix: str = BIOMARK_PREFIX,
+    endpoint_url: str = BIOMARK_AWS_ENDPOINT,
+    access_key: str = BIOMARK_ACCESS_KEY,
+    secret_key: str = BIOMARK_SECRET_KEY,
+    region: str = BIOMARK_REGION,
+):
+    """Biomark PIT registering salmon data synchronization."""
+
+    # validate that either place or all_locations is specified
+    if not all_locations and not place:
+        raise typer.BadParameter(
+            "Either --place must be specified or --all-locations flag must be used"
+        )
+
+    # validate that at least one data type is selected
+    if not any([tags, readers, environment]):
+        raise typer.BadParameter(
+            "At least one data type must be selected: "
+            "--tags, --readers, or --environment"
+        )
+
+    if all_locations:
+        # skip 'vatne' (0NO) as it returns 403 Forbidden
+        accessible_sites = {k: v for k, v in SITES.items() if k != "vatne"}
+        locations = list(accessible_sites.keys())
+        log.info("Processing accessible locations", locations=locations)
+    else:
+        locations = [place]
+        log.info("Processing single location", location=place)
+
+    credentials = AwsCredentials(
+        s3_url_style="path",
+        endpoint_url=endpoint_url,
+        aws_secret_access_key=secret_key,
+        aws_access_key_id=access_key,
+        region_name=region,
+    )
+
+    # Set up DLT pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="biomark_pit_registering_salmon",
+        destination=filesystem(
+            bucket_url=f"s3://{bucket}/" + prefix,
+            credentials=credentials,
+            layout="{table_name}.{ext}",
+        ),
+        dataset_name="main",
+        progress="log",
+    )
+
+    # Run the pipeline
+    log.info(
+        pipeline.run(
+            biomark_pit_salmon(
+                base_url=base_url,
+                begin_date=begin_date,
+                end_date=end_date,
+                locations=locations,
+                tags=tags,
+                readers=readers,
+                environment=environment,
+            ),
+            write_disposition="append",
+            loader_file_format="parquet",
+        )
+    )
+
+
 if __name__ == "__main__":
-    main()
+    app()
