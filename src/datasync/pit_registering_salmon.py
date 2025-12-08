@@ -265,8 +265,6 @@ def get_bearer_token():
         "password": BIOMARK_API_PWD,
     }
 
-    logger.info(payload)
-
     response = requests.post(url, json=payload, headers=header, timeout=10)
     response.raise_for_status()
     token = response.json().get("access")
