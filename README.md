@@ -1,10 +1,13 @@
-# Data Sync
+# Miljødata data sync
 
-Provide scripts to download and sync data
+This repo is used to create scripts for fetching data from different services. The common denominator is that the various data is being fetched with the Python library `dlt` which simplifies the process of downloading data from RestAPI's.
 
 - UBW
 - NVA
 
+## Environment variables
+
+The necessary environment variables are stored in `settings.py` depending on which data you want to sync. The environment variables are separated per use-case.
 
 ## Setup
 Install `uv`: https://docs.astral.sh/uv/getting-started/installation/
