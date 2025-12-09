@@ -2,15 +2,16 @@
 
 """Biomark PIT registering salmon data synchronization."""
 
+import os
 from datetime import datetime, timedelta
 
 import dlt
 import requests
 import typer
-from dlt.destinations.impl.filesystem.factory import filesystem
-from dlt.sources.credentials import AwsCredentials
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
+from sling import Replication
 
 from .settings import (
     BIOMARK_ACCESS_KEY,
@@ -19,7 +20,6 @@ from .settings import (
     BIOMARK_AWS_ENDPOINT,
     BIOMARK_BASE_URL,
     BIOMARK_BUCKET,
-    BIOMARK_PREFIX,
     BIOMARK_REGION,
     BIOMARK_SECRET_KEY,
     log,
@@ -84,48 +84,59 @@ def get_bearer_token():
 
 
 def get_environmental_data(
-    client: RESTClient, location_code: str, begin_date: str, end_date: str
+    client: RESTClient, locations: list[str], begin_date: str, end_date: str
 ):
     """Fetch environmental data from Biomark API."""
-    log.debug("Fetching environmental data for location", location_code=location_code)
-    yield from client.paginate(
-        f"enviro/{location_code}",
-        method="get",
-        params={
-            "begin_dt": begin_date,
-            "end_dt": end_date,
-        },
-    )
+    for location_name in locations:
+        location_code = SITES.get(location_name)
+        log.debug(
+            "Fetching environmental data for location", location_code=location_code
+        )
+        yield from client.paginate(
+            f"enviro/{location_code}",
+            method="get",
+            params={
+                "begin_dt": begin_date,
+                "end_dt": end_date,
+            },
+        )
 
 
 def get_tags_data(
-    client: RESTClient, location_code: str, begin_date: str, end_date: str
+    client: RESTClient, locations: list[str], begin_date: str, end_date: str
 ):
     """Fetch tags data from Biomark API."""
-    log.debug("Fetching tags data for location", location_code=location_code)
-    yield from client.paginate(
-        f"tags/{location_code}",
-        method="get",
-        params={
-            "begin_dt": begin_date,
-            "end_dt": end_date,
-        },
-    )
+    for location_name in locations:
+        location_code = SITES.get(location_name)
+        log.debug("Fetching tags data for location", location_code=location_code)
+        yield from client.paginate(
+            f"tags/{location_code}",
+            method="get",
+            params={
+                "begin_dt": begin_date,
+                "end_dt": end_date,
+            },
+        )
 
 
 def get_readers_voltage_data(
-    client: RESTClient, location_code: str, begin_date: str, end_date: str
+    client: RESTClient, locations: list[str], begin_date: str, end_date: str
 ):
     """Fetch readers voltage data from Biomark API."""
-    log.debug("Fetching readers voltage data for location", location_code=location_code)
-    yield from client.paginate(
-        f"reader/{location_code}",
-        method="get",
-        params={
-            "begin_dt": begin_date,
-            "end_dt": end_date,
-        },
-    )
+
+    for location_name in locations:
+        location_code = SITES.get(location_name)
+        log.debug(
+            "Fetching readers voltage data for location", location_code=location_code
+        )
+        yield from client.paginate(
+            f"reader/{location_code}",
+            method="get",
+            params={
+                "begin_dt": begin_date,
+                "end_dt": end_date,
+            },
+        )
 
 
 @dlt.transformer(primary_key=["tag", "detected_at"])
@@ -156,6 +167,7 @@ def biomark_pit_salmon(
     client = RESTClient(
         base_url=base_url,
         auth=BearerTokenAuth(token),
+        paginator=SinglePagePaginator(),
     )
 
     # set default dates if not provided
@@ -164,46 +176,36 @@ def biomark_pit_salmon(
         begin_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
         end_date = datetime.today().strftime("%Y-%m-%d")
 
-    for location_name in locations:
-        location_code = SITES.get(location_name)
-        if not location_code:
-            log.warning(f"Unknown location: {location_name}")
-            continue
+    try:
+        if tags:
+            tags_resource = dlt.resource(
+                get_tags_data(client, locations, begin_date, end_date),
+                name="tags",
+                primary_key=["tag", "detected_at"],
+            )
+            yield tags_resource | add_decimal_tags.with_name("tags")
 
-        try:
-            if tags:
-                tags_resource = dlt.resource(
-                    get_tags_data(client, location_code, begin_date, end_date),
-                    name=f"tags_{location_name}",
-                    primary_key=["tag", "detected_at"],
-                    write_disposition="append",
-                )
-                # Apply decimal tag transformation
-                yield tags_resource | add_decimal_tags.with_name(
-                    f"tags_{location_name}"
-                )
+        if readers:
+            readers_resource = dlt.resource(
+                get_readers_voltage_data(client, locations, begin_date, end_date),
+                name="readers_voltage",
+                primary_key=["reader__site__slug", "read_at"],
+            )
+            yield readers_resource
 
-            if readers:
-                yield dlt.resource(
-                    get_readers_voltage_data(
-                        client, location_code, begin_date, end_date
-                    ),
-                    name=f"readers_voltage_{location_name}",
-                    primary_key=["read_at"],
-                    write_disposition="append",
-                )
+        if environment:
+            env_resource = dlt.resource(
+                get_environmental_data(client, locations, begin_date, end_date),
+                name="environment_data",
+                primary_key=["read_at"],
+                write_disposition="append",
+            )
+            env_resource.apply_hints(incremental=dlt.sources.incremental("read_at"))
+            yield env_resource
 
-            if environment:
-                yield dlt.resource(
-                    get_environmental_data(client, location_code, begin_date, end_date),
-                    name=f"environment_data_{location_name}",
-                    primary_key=["read_at"],
-                    write_disposition="append",
-                )
-
-        except Exception as e:
-            log.error(f"Error processing {location_name}: {e}")
-            # continue with next location
+    except Exception as e:
+        log.error(f"Error processing locations: {e}")
+        # continue with next location
 
 
 @app.command()
@@ -224,12 +226,6 @@ def run(
         False, help="Download data from all accessible locations"
     ),
     base_url: str = BIOMARK_BASE_URL,
-    bucket: str = BIOMARK_BUCKET,
-    prefix: str = BIOMARK_PREFIX,
-    endpoint_url: str = BIOMARK_AWS_ENDPOINT,
-    access_key: str = BIOMARK_ACCESS_KEY,
-    secret_key: str = BIOMARK_SECRET_KEY,
-    region: str = BIOMARK_REGION,
 ):
     """Biomark PIT registering salmon data synchronization."""
 
@@ -255,22 +251,10 @@ def run(
         locations = [place]
         log.info("Processing single location", location=place)
 
-    credentials = AwsCredentials(
-        s3_url_style="path",
-        endpoint_url=endpoint_url,
-        aws_secret_access_key=secret_key,
-        aws_access_key_id=access_key,
-        region_name=region,
-    )
-
     # Set up DLT pipeline
     pipeline = dlt.pipeline(
-        pipeline_name="biomark_pit_registering_salmon",
-        destination=filesystem(
-            bucket_url=f"s3://{bucket}/" + prefix,
-            credentials=credentials,
-            layout="{table_name}.{ext}",
-        ),
+        pipeline_name="biomark_pit",
+        destination="duckdb",
         dataset_name="main",
         progress="log",
     )
@@ -287,10 +271,45 @@ def run(
                 readers=readers,
                 environment=environment,
             ),
-            write_disposition="append",
-            loader_file_format="parquet",
         )
     )
+
+
+@app.command()
+def replicate(
+    bucket: str = BIOMARK_BUCKET,
+    endpoint_url: str = BIOMARK_AWS_ENDPOINT,
+    access_key: str = BIOMARK_ACCESS_KEY,
+    secret_key: str = BIOMARK_SECRET_KEY,
+    region: str = BIOMARK_REGION,
+):
+    os.environ["NINAS3"] = f"{{type: s3, bucket: {bucket}, use_environment: true }}"
+    os.environ["AWS_ACCESS_KEY_ID"] = access_key
+    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
+    os.environ["AWS_REGION"] = region
+    os.environ["AWS_ENDPOINT"] = endpoint_url
+    os.environ["DUCKDB"] = "{type: duckdb, instance: biomark_pit.duckdb}"
+
+    Replication(
+        source="DUCKDB",
+        target="NINAS3",
+        defaults={
+            "object": "tables/{stream_name}/{part_year}/{part_month}/{part_day}",
+            "mode": "incremental",
+            "target_options": {"format": "parquet"},
+        },
+        streams={
+            "readers_voltage": {
+                "primary_key": ["location_name", "read_at"],
+                "update_key": "read_at",
+                "object": "tables/{stream_name}/{part_year}/{part_month}/{part_day}",
+                "mode": "incremental",
+                "target_options": {"format": "parquet"},
+            }
+        },
+        env={"SLING_STATE": "NINAS3/data/sling"},
+        debug=True,
+    ).run()
 
 
 if __name__ == "__main__":

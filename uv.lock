@@ -347,6 +347,7 @@ dependencies = [
     { name = "python-calamine" },
     { name = "requests" },
     { name = "rich" },
+    { name = "sling" },
     { name = "structlog" },
     { name = "typer" },
 ]
@@ -369,6 +370,7 @@ requires-dist = [
     { name = "python-calamine", specifier = ">=0.6.1" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "rich", specifier = ">=14.2.0" },
+    { name = "sling", specifier = ">=1.5.1" },
     { name = "structlog", specifier = ">=25.5.0" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
@@ -2197,6 +2199,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
+]
+
+[[package]]
+name = "sling"
+version = "1.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/a2/004be8b473689e99e11439710211cee0eebec6c469961a99fd39df71f579/sling-1.5.1.tar.gz", hash = "sha256:4639c4b7f21c4d99844c77d73015c72ae294fc54e9bcada4d550a6a8c7d71e80", size = 41095, upload-time = "2025-12-07T11:19:09.302Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/8e/66fafca08d2810428c2433e86c3db11bbf8896ee3c8814a54a8ebb8b1760/sling-1.5.1-py3-none-any.whl", hash = "sha256:101dfac15bd4de0f5265f53653087f02a69321010fd1141f3e532cd1cd2b7049", size = 24893, upload-time = "2025-12-07T11:19:07.774Z" },
 ]
 
 [[package]]
