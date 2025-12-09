@@ -18,7 +18,7 @@ BIOMARK_BASE_URL = env("BIOMARK_BASE_URL", default="https://data3.biomark.com/ap
 BIOMARK_API_EMAIL = env("BIOMARK_API_EMAIL", default="")
 BIOMARK_API_PWD = env("BIOMARK_API_PWD", default="")
 BIOMARK_AWS_ENDPOINT = env("BIOMARK_AWS_ENDPOINT", default="")
-BIOMARK_BUCKET = env("BIOMARK_BUCKET", default="pit-registering-salmon")
+BIOMARK_BUCKET = env("BIOMARK_BUCKET", default="")
 BIOMARK_PREFIX = env("BIOMARK_PREFIX", default="ducklake")
 BIOMARK_REGION = env("BIOMARK_REGION", default="us-east-1")
 BIOMARK_ACCESS_KEY = env("BIOMARK_ACCESS_KEY", default="")
