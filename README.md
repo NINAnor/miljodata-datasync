@@ -1,9 +1,18 @@
-# Miljødata data sync
+# Miljødata - Data Sync
 
 This repo is used to create scripts for fetching data from different services. The common denominator is that the various data is being fetched with the Python library `dlt` which simplifies the process of downloading data from RestAPI's.
 
-- UBW
-- NVA
+The scripts are CLI-based, and the usage can be understood by typing:
+
+```bash
+uv run datasync --help
+```
+
+For example to understand how the CLI works for fetching data from `ubw` you can do:
+
+```bash
+uv run datasync ubw --help
+```
 
 ## Environment variables
 
