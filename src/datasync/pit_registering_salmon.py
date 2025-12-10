@@ -190,6 +190,7 @@ def biomark_pit_salmon(
                 get_readers_voltage_data(client, locations, begin_date, end_date),
                 name="readers_voltage",
                 primary_key=["reader__site__slug", "read_at"],
+                write_disposition="merge",
             )
             yield readers_resource
 
@@ -253,7 +254,7 @@ def run(
 
     # Set up DLT pipeline
     pipeline = dlt.pipeline(
-        pipeline_name="biomark_pit",
+        pipeline_name="biomark_pit_registering_salmon_v1_test",
         destination="duckdb",
         dataset_name="main",
         progress="log",
@@ -288,7 +289,9 @@ def replicate(
     os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
     os.environ["AWS_REGION"] = region
     os.environ["AWS_ENDPOINT"] = endpoint_url
-    os.environ["DUCKDB"] = "{type: duckdb, instance: biomark_pit.duckdb}"
+    os.environ["DUCKDB"] = (
+        "{type: duckdb, instance: biomark_pit_registering_salmon_v1.duckdb}"
+    )
 
     Replication(
         source="DUCKDB",
@@ -299,15 +302,25 @@ def replicate(
             "target_options": {"format": "parquet"},
         },
         streams={
-            "readers_voltage": {
-                "primary_key": ["location_name", "read_at"],
+            "readers_voltage__" + location: {
+                "primary_key": ["read_at"],
                 "update_key": "read_at",
-                "object": "tables/{stream_name}/{part_year}/{part_month}/{part_day}",
+                "object": (
+                    f"test/readers_voltage/location={location}/"
+                    f"{{part_year}}/{{part_month}}/{{part_day}}"
+                ),
                 "mode": "incremental",
                 "target_options": {"format": "parquet"},
+                "sql": (
+                    "select * replace (read_at at time zone 'UTC' as read_at) "
+                    "from readers_voltage where reader__site__slug = ? "
+                    "and {incremental_where_cond}"
+                ),
+                "sql_parameters": [location],
             }
+            for location in SITES.values()
         },
-        env={"SLING_STATE": "NINAS3/data/sling"},
+        env={"SLING_STATE": "NINAS3/data/sling", "SLING_DIRECT_INSERT": "True"},
         debug=True,
     ).run()
 
