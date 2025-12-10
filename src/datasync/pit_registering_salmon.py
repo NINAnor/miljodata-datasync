@@ -228,7 +228,7 @@ def run(
     ),
     base_url: str = BIOMARK_BASE_URL,
 ):
-    """Biomark PIT registering salmon data synchronization."""
+    """Download PIT data from BioMark's API to a .duckdb file."""
 
     # validate that either place or all_locations is specified
     if not all_locations and not place:
@@ -283,7 +283,11 @@ def replicate(
     access_key: str = BIOMARK_ACCESS_KEY,
     secret_key: str = BIOMARK_SECRET_KEY,
     region: str = BIOMARK_REGION,
+    tags: bool = typer.Option(False, help="Add tags data to S3"),
+    readers: bool = typer.Option(False, help="Add readers voltage data to S3"),
+    environment: bool = typer.Option(False, help="Add environment data to S3"),
 ):
+    """Upload data from .duckdb to S3 bucket."""
     os.environ["NINAS3"] = f"{{type: s3, bucket: {bucket}, use_environment: true }}"
     os.environ["AWS_ACCESS_KEY_ID"] = access_key
     os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
@@ -293,20 +297,24 @@ def replicate(
         "{type: duckdb, instance: biomark_pit_registering_salmon_v1.duckdb}"
     )
 
-    Replication(
-        source="DUCKDB",
-        target="NINAS3",
-        defaults={
-            "object": "tables/{stream_name}/{part_year}/{part_month}/{part_day}",
-            "mode": "incremental",
-            "target_options": {"format": "parquet"},
-        },
-        streams={
-            "readers_voltage__" + location: {
+    # Validate that at least one data type is selected
+    if not any([readers, tags, environment]):
+        typer.echo(
+            "Error: At least one data type must be selected "
+            "(--readers, --tags, or --environment)"
+        )
+        raise typer.Exit(1)
+
+    # Build streams dictionary by merging all selected data types
+    streams = {}
+
+    if readers:
+        reader_streams = {
+            f"readers_voltage__{location}": {
                 "primary_key": ["read_at"],
                 "update_key": "read_at",
                 "object": (
-                    f"test/readers_voltage/location={location}/"
+                    f"tables/readers_voltage/location={location}/"
                     f"{{part_year}}/{{part_month}}/{{part_day}}"
                 ),
                 "mode": "incremental",
@@ -319,7 +327,67 @@ def replicate(
                 "sql_parameters": [location],
             }
             for location in SITES.values()
+        }
+        streams.update(reader_streams)
+        typer.echo(f"Added {len(reader_streams)} reader voltage streams")
+
+    if tags:
+        tag_streams = {
+            f"tags__{location}": {
+                "primary_key": ["detected_at"],
+                "update_key": "detected_at",
+                "object": (
+                    f"tables/tags/location={location}/"
+                    f"{{part_year}}/{{part_month}}/{{part_day}}"
+                ),
+                "mode": "incremental",
+                "target_options": {"format": "parquet"},
+                "sql": (
+                    "select * replace (detected_at at time zone 'UTC' as detected_at) "
+                    "from tags where reader__site__slug = ? "
+                    "and {incremental_where_cond}"
+                ),
+                "sql_parameters": [location],
+            }
+            for location in SITES.values()
+        }
+        streams.update(tag_streams)
+        typer.echo(f"Added {len(tag_streams)} tag streams")
+
+    if environment:
+        env_streams = {
+            f"environment__{location}": {
+                "primary_key": ["read_at"],
+                "update_key": "read_at",
+                "object": (
+                    f"tables/environment/location={location}/"
+                    f"{{part_year}}/{{part_month}}/{{part_day}}"
+                ),
+                "mode": "incremental",
+                "target_options": {"format": "parquet"},
+                "sql": (
+                    "select * replace (read_at at time zone 'UTC' as read_at) "
+                    "from environment where reader__site__slug = ? "
+                    "and {incremental_where_cond}"
+                ),
+                "sql_parameters": [location],
+            }
+            for location in SITES.values()
+        }
+        streams.update(env_streams)
+        typer.echo(f"Added {len(env_streams)} environment streams")
+
+    typer.echo(f"Total streams to replicate: {len(streams)}")
+
+    Replication(
+        source="DUCKDB",
+        target="NINAS3",
+        defaults={
+            "object": "tables/{stream_name}/{part_year}/{part_month}/{part_day}",
+            "mode": "incremental",
+            "target_options": {"format": "parquet"},
         },
+        streams=streams,
         env={"SLING_STATE": "NINAS3/data/sling", "SLING_DIRECT_INSERT": "True"},
         debug=True,
     ).run()
