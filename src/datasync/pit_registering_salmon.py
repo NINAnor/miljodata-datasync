@@ -252,15 +252,13 @@ def run(
         locations = [place]
         log.info("Processing single location", location=place)
 
-    # Set up DLT pipeline
     pipeline = dlt.pipeline(
-        pipeline_name="biomark_pit_registering_salmon_v1_test",
+        pipeline_name="biomark_pit_registering_salmon_v1",
         destination="duckdb",
         dataset_name="main",
         progress="log",
     )
 
-    # Run the pipeline
     log.info(
         pipeline.run(
             biomark_pit_salmon(
@@ -274,6 +272,28 @@ def run(
             ),
         )
     )
+
+
+def create_stream_config(config: dict, location: str) -> dict:
+    """Create a stream configuration for a specific data type and location."""
+    return {
+        "primary_key": config["primary_key"],
+        "update_key": config["update_key"],
+        "object": (
+            f"tables/{config['table_name']}/location={location}/"
+            f"{{part_year}}/{{part_month}}/{{part_day}}"
+        ),
+        "mode": "incremental",
+        "target_options": {"format": "parquet"},
+        "sql": (
+            f"select * replace ("  # noqa: S608
+            f"{config['time_column']} at time zone 'UTC' as "
+            f"{config['time_column']}) "
+            f"from {config['table_name']} where "
+            f"{config['location']} = '{location}' "
+            f"and {{incremental_where_cond}}"
+        ),
+    }
 
 
 @app.command()
@@ -297,7 +317,6 @@ def replicate(
         "{type: duckdb, instance: biomark_pit_registering_salmon_v1.duckdb}"
     )
 
-    # Validate that at least one data type is selected
     if not any([readers, tags, environment]):
         typer.echo(
             "Error: At least one data type must be selected "
@@ -305,77 +324,44 @@ def replicate(
         )
         raise typer.Exit(1)
 
-    # Build streams dictionary by merging all selected data types
-    streams = {}
+    # Only include configs for enabled data types
+    stream_configs = {}
 
     if readers:
-        reader_streams = {
-            f"readers_voltage__{location}": {
-                "primary_key": ["read_at"],
-                "update_key": "read_at",
-                "object": (
-                    f"tables/readers_voltage/location={location}/"
-                    f"{{part_year}}/{{part_month}}/{{part_day}}"
-                ),
-                "mode": "incremental",
-                "target_options": {"format": "parquet"},
-                "sql": (
-                    "select * replace (read_at at time zone 'UTC' as read_at) "
-                    "from readers_voltage where reader__site__slug = ? "
-                    "and {incremental_where_cond}"
-                ),
-                "sql_parameters": [location],
-            }
-            for location in SITES.values()
+        stream_configs["readers"] = {
+            "table_name": "readers_voltage",
+            "primary_key": ["read_at"],
+            "update_key": "read_at",
+            "time_column": "read_at",
+            "location": "reader__site__slug",
         }
-        streams.update(reader_streams)
-        typer.echo(f"Added {len(reader_streams)} reader voltage streams")
 
     if tags:
-        tag_streams = {
-            f"tags__{location}": {
-                "primary_key": ["detected_at"],
-                "update_key": "detected_at",
-                "object": (
-                    f"tables/tags/location={location}/"
-                    f"{{part_year}}/{{part_month}}/{{part_day}}"
-                ),
-                "mode": "incremental",
-                "target_options": {"format": "parquet"},
-                "sql": (
-                    "select * replace (detected_at at time zone 'UTC' as detected_at) "
-                    "from tags where reader__site__slug = ? "
-                    "and {incremental_where_cond}"
-                ),
-                "sql_parameters": [location],
-            }
-            for location in SITES.values()
+        stream_configs["tags"] = {
+            "table_name": "tags",
+            "primary_key": ["detected_at"],
+            "update_key": "detected_at",
+            "time_column": "detected_at",
+            "location": "antenna__reader__site__slug",
         }
-        streams.update(tag_streams)
-        typer.echo(f"Added {len(tag_streams)} tag streams")
 
     if environment:
-        env_streams = {
-            f"environment__{location}": {
-                "primary_key": ["read_at"],
-                "update_key": "read_at",
-                "object": (
-                    f"tables/environment/location={location}/"
-                    f"{{part_year}}/{{part_month}}/{{part_day}}"
-                ),
-                "mode": "incremental",
-                "target_options": {"format": "parquet"},
-                "sql": (
-                    "select * replace (read_at at time zone 'UTC' as read_at) "
-                    "from environment where reader__site__slug = ? "
-                    "and {incremental_where_cond}"
-                ),
-                "sql_parameters": [location],
-            }
+        stream_configs["environment"] = {
+            "table_name": "environment_data",
+            "primary_key": ["read_at"],
+            "update_key": "read_at",
+            "time_column": "read_at",
+            "location": "reader__site__slug",
+        }
+
+    streams = {}
+    for data_type, config in stream_configs.items():
+        type_streams = {
+            f"{data_type}__{location}": create_stream_config(config, location)
             for location in SITES.values()
         }
-        streams.update(env_streams)
-        typer.echo(f"Added {len(env_streams)} environment streams")
+        streams.update(type_streams)
+        typer.echo(f"Added {len(type_streams)} {data_type} streams")
 
     typer.echo(f"Total streams to replicate: {len(streams)}")
 
