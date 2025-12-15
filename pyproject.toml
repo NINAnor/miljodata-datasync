@@ -30,6 +30,7 @@ version = "0.1.0"
 
 [project.scripts]
 datasync = "datasync.main:app"
+dms_sync = "datasync.dms:app"
 nva_sync = "datasync.nva:app"
 ubw_sync = "datasync.ubw:app"
 
