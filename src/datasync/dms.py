@@ -11,6 +11,11 @@ app = typer.Typer()
 iso = ISO19139OutputSchema()
 
 
+def guess_type(driver: str) -> str:
+    # TODO: improve mapping based on the driver
+    return "image/tiff"
+
+
 def to_iso19139(metadata: dict) -> str:
     loaded = orjson.loads(metadata)
     log.debug(loaded, id=loaded.get("identification", {}).get("identifier"))
@@ -359,6 +364,7 @@ def generate_geoapi_config(base_url: str = DMS_DATASETS_BASE, lang="en"):
 
     conn = duckdb.connect()
     conn.sql("Install spatial; load spatial")
+    conn.create_function("guess_type", guess_type)
 
     datasets = conn.read_parquet(base_url + "datasets_dataset.parquet").filter(
         "json_keys(metadata) <> []"
@@ -429,14 +435,15 @@ def generate_geoapi_config(base_url: str = DMS_DATASETS_BASE, lang="en"):
                         ],
                         crs: 4326
                     }
-                } as extent,
+                } as extents,
                 [{
                     "type": 'coverage',
                     "default": true,
                     "name": 'rasterio',
                     "data": '/vsicurl/' || r.uri,
                     "format": {
-                        "name": r.metadata->>'$.driverShortName'
+                        "name": r.metadata->>'$.driverShortName',
+                        "mimetype": guess_type(r.metadata->>'$.driverShortName')
                     }
                 }] as providers
             where r.extent is not null and r.metadata is not null
@@ -444,6 +451,75 @@ def generate_geoapi_config(base_url: str = DMS_DATASETS_BASE, lang="en"):
 
     log.debug(geo_raster)
     conn.sql("copy geo_raster to 'dms-raster.json' (FORMAT json, ARRAY true)")
+
+    descriptions = (
+        (
+            vectors.set_alias("r")
+            .join(datasets.set_alias("d"), condition="r.dataset_id = d.id")
+            .select(
+                f"r.id, unnest(json_transform(d.metadata->'$.descriptions[*]', '{descriptions_structure}'), recursive := true)"  # noqa: E501
+            )
+        )
+        .filter(
+            duckdb.ColumnExpression("lang") == duckdb.ConstantExpression(lang),
+        )
+        .aggregate(
+            "id, lang, string_agg('# ' || descriptionType || '\n' || description, '\n') as description"  # noqa: E501
+        )
+    )
+    log.debug(descriptions)
+
+    subjects = (
+        vectors.set_alias("r")
+        .join(datasets.set_alias("d"), condition="r.dataset_id = d.id")
+        .select(
+            """r.id, unnest(json_transform(d.metadata->'$.subjects[*]', '[{"subject": "VARCHAR", "subjectScheme": "VARCHAR", "schemeURI": "VARCHAR", "valueURI": "VARCHAR", "classificationCode": "VARCHAR"}]'), recursive := true)"""  # noqa: E501
+        )
+        .aggregate(
+            "id, array_agg(subject) as keywords"  # noqa: E501
+        )
+    )
+    log.debug(subjects)
+
+    geo_vector = conn.sql("""
+             from vectors as r
+             join datasets as d on d.id = r.dataset_id
+             join datatables as dt on dt.resource_id = r.id
+             left join descriptions as descr on descr.id = d.id
+             left join subjects as sbj on sbj.id = d.id
+             select
+                d.id || '/' || r.id || '/' || dt.name as id,
+                'collection' as type,
+                'default' as visibility,
+                d.title || ' - ' || r.title as title,
+                coalesce(sbj.keywords, []) as keywords,
+                coalesce(r.description || '\n' || descr.description, '') as description,
+                {
+                    "spatial": {
+                          bbox: [
+                            ST_XMIN(dt.extent), ST_YMIN(dt.extent),
+                            ST_XMAX(dt.extent), ST_YMAX(dt.extent),
+                        ],
+                        crs: 4326
+                    }
+                } as extents,
+                [{
+                    "type": 'feature',
+                    "default": true,
+                    "name": 'OGR',
+                    "editable": false,
+                    "id_field": coalesce(dt.fields->>'$[0].name', 'fid'),
+                    "data": {
+                        "source": '/vsicurl/' || r.uri,
+                        "source_type": r.metadata->>'$.driverShortName',
+                    },
+                    "layer": dt.name
+                }] as providers
+            where dt.extent is not null and dt.metadata is not null
+    """)
+    log.debug(geo_vector)
+
+    conn.sql("copy geo_vector to 'dms-vector.json' (FORMAT json, ARRAY true)")
 
 
 if __name__ == "__main__":
