@@ -39,3 +39,9 @@ UBW_PREFIX = env("UBW_PREFIX", default="")
 
 # DMS
 DMS_DATASETS_BASE = env("DMS_DATASETS_BASE", default="")
+DMS_ACCESS_KEY = env("DMS_ACCESS_KEY", default="")
+DMS_SECRET_KEY = env("DMS_SECRET_KEY", default="")
+DMS_AWS_ENDPOINT = env("DMS_AWS_ENDPOINT", default="")
+DMS_BUCKET = env("DMS_BUCKET", default="")
+DMS_GEOAPI_PREFIX = env("DMS_GEOAPI_PREFIX", default="/geoapi/")
+DMS_CSW_PREFIX = env("DMS_CSW_PREFIX", default="/csw/dms-metadata.parquet")

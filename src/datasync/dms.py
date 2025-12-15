@@ -4,7 +4,16 @@ import typer
 from pygeometa.schemas.iso19139 import ISO19139OutputSchema
 
 from .libs.helpers import get_anytext
-from .settings import DMS_DATASETS_BASE, log
+from .settings import (
+    DMS_ACCESS_KEY,
+    DMS_AWS_ENDPOINT,
+    DMS_BUCKET,
+    DMS_CSW_PREFIX,
+    DMS_DATASETS_BASE,
+    DMS_GEOAPI_PREFIX,
+    DMS_SECRET_KEY,
+    log,
+)
 
 app = typer.Typer()
 
@@ -28,11 +37,30 @@ def to_iso19139(metadata: dict) -> str:
 
 
 @app.command()
-def generate_csw_metadata(base_url: str = DMS_DATASETS_BASE, lang="en"):
+def generate_csw_metadata(
+    base_url: str = DMS_DATASETS_BASE,
+    access_key=DMS_ACCESS_KEY,
+    secret_key=DMS_SECRET_KEY,
+    endpoint=DMS_AWS_ENDPOINT,
+    bucket=DMS_BUCKET,
+    prefix=DMS_CSW_PREFIX,
+    lang="en",
+):
     # TODO: localize the output based on the language in input
 
     conn = duckdb.connect()
     conn.sql("INSTALL yaml FROM community; LOAD yaml; Install spatial; load spatial")
+
+    conn.execute(f"""
+        CREATE OR REPLACE SECRET secret (
+            TYPE s3,
+            REGION 'eu-west-1',
+            KEY_ID '{access_key}',
+            SECRET '{secret_key}',
+            ENDPOINT '{endpoint.replace(r"https://", "")}',
+            URL_STYLE 'path'
+        );
+    """).fetchall()
 
     conn.create_function("to_iso19139", to_iso19139)
     conn.create_function("xml_bag", get_anytext)
@@ -355,16 +383,39 @@ def generate_csw_metadata(base_url: str = DMS_DATASETS_BASE, lang="en"):
 
     log.debug(csw)
 
-    csw.write_parquet("dms-metadata.parquet")
+    csw.write_parquet(
+        f"s3://{bucket}{prefix}",
+        compression="zstd",
+        overwrite=True,
+    )
 
 
 @app.command()
-def generate_geoapi_config(base_url: str = DMS_DATASETS_BASE, lang="en"):
+def generate_geoapi_config(
+    base_url: str = DMS_DATASETS_BASE,
+    access_key=DMS_ACCESS_KEY,
+    secret_key=DMS_SECRET_KEY,
+    endpoint=DMS_AWS_ENDPOINT,
+    bucket=DMS_BUCKET,
+    prefix=DMS_GEOAPI_PREFIX,
+    lang="en",
+):
     # TODO: localize the output based on the language in input
 
     conn = duckdb.connect()
     conn.sql("Install spatial; load spatial")
     conn.create_function("guess_type", guess_type)
+
+    conn.execute(f"""
+        CREATE OR REPLACE SECRET secret (
+            TYPE s3,
+            REGION 'eu-west-1',
+            KEY_ID '{access_key}',
+            SECRET '{secret_key}',
+            ENDPOINT '{endpoint.replace(r"https://", "")}',
+            URL_STYLE 'path'
+        );
+    """).fetchall()
 
     datasets = conn.read_parquet(base_url + "datasets_dataset.parquet").filter(
         "json_keys(metadata) <> []"
@@ -450,8 +501,9 @@ def generate_geoapi_config(base_url: str = DMS_DATASETS_BASE, lang="en"):
     """)
 
     log.debug(geo_raster)
-    conn.sql("copy geo_raster to 'dms-raster.json' (FORMAT json, ARRAY true)")
-
+    conn.sql(f"""
+        COPY geo_raster to 's3://{bucket}{prefix}/dms-raster.json' (FORMAT json, ARRAY true)
+    """)  # noqa: E501
     descriptions = (
         (
             vectors.set_alias("r")
@@ -519,7 +571,9 @@ def generate_geoapi_config(base_url: str = DMS_DATASETS_BASE, lang="en"):
     """)
     log.debug(geo_vector)
 
-    conn.sql("copy geo_vector to 'dms-vector.json' (FORMAT json, ARRAY true)")
+    conn.sql(f"""
+        COPY geo_vector to 's3://{bucket}{prefix}/dms-vector.json' (FORMAT json, ARRAY true)
+    """)  # noqa: E501
 
 
 if __name__ == "__main__":
