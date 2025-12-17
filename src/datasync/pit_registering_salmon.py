@@ -235,6 +235,7 @@ def run(
         False, help="Download data from all accessible locations"
     ),
     base_url: str = BIOMARK_BASE_URL,
+    today: bool = typer.Option(False, help="Set date range to today only"),
 ):
     """Download PIT data from BioMark's API to a .duckdb file."""
 
@@ -250,6 +251,11 @@ def run(
             "At least one data type must be selected: "
             "--tags, --readers, or --environment"
         )
+
+    if today:
+        begin_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date = datetime.today().strftime("%Y-%m-%d")
+        log.info("Setting date range to today", date=begin_date)
 
     if all_locations:
         # skip 'vatne' (0NO) as it returns 403 Forbidden
