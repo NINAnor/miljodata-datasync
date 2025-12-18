@@ -29,7 +29,9 @@ BIOMARK_PREFIX = env("BIOMARK_PREFIX", default="tables")
 BIOMARK_REGION = env("BIOMARK_REGION", default="us-east-1")
 BIOMARK_ACCESS_KEY = env("BIOMARK_ACCESS_KEY", default="")
 BIOMARK_SECRET_KEY = env("BIOMARK_SECRET_KEY", default="")
-BIOMARK_DUCKDB_PATH = env("BIOMARK_DUCKDB_PATH", default="")
+BIOMARK_DUCKDB_PATH = env(
+    "BIOMARK_DUCKDB_PATH", default="biomark_pit_registering_salmon_v1.duckdb"
+)
 
 app = typer.Typer()
 
@@ -259,7 +261,7 @@ def run(
         log.info("Processing single location", location=place)
 
     pipeline = dlt.pipeline(
-        pipeline_name="biomark_pit_registering_salmon_v1",
+        pipeline_name=BIOMARK_DUCKDB_PATH.replace(".duckdb", ""),
         destination="duckdb",
         dataset_name="main",
         progress="log",
@@ -334,13 +336,15 @@ def check_table_has_data(db_path: str, table_name: str) -> bool:
 
             log.info(f"Table {table_name} has {row_count} rows")
             return row_count > 0
-
+        except Exception as e:
+            raise Exception(f"Error checking table {table_name}") from e
         finally:
             conn.close()
 
     except Exception as e:
-        log.error(f"Error checking table {table_name}: {e}")
-        return False
+        log.error(f"Error with database: {e}")
+
+    return False
 
 
 @app.command()
