@@ -21,14 +21,24 @@ dependencies = [
   "structlog>=25.5.0",
   "rich>=14.2.0",
   "typer>=0.20.0",
-  "pygeometa>=0.19.0",
+  "pygeometa @ git+https://github.com/nicokant/pygeometa@gbif-eml#egg=pygeometa",
   "orjson>=3.11.4",
   "duckdb>=1.4.2",
   "lxml>=6.0.2",
   "openpyxl>=3.1.5",
   "python-calamine>=0.6.1",
   "requests>=2.32.5",
-  "sling>=1.5.1"
+  "sling>=1.5.1",
+  "beautifulsoup4>=4.13.3",
+  "fsspec>=2025.3.2",
+  "jinja2>=3.1.6",
+  "s3fs>=2025.3.2",
+  "shapely>=2.1.0",
+  "xmltodict>=0.14.2",
+  "pyarrow>=20.0.0",
+  "httpx>=0.28.1",
+  "setuptools>=65.5.0",
+  "backoff>=2.1.0"
 ]
 description = ""
 license = "GPL-3.0+"
@@ -44,7 +54,10 @@ nva_sync = "datasync.nva:app"
 ubw_sync = "datasync.ubw:app"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["rich", "numpy"]
+DEP002 = ["rich", "numpy", "setuptools"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.ruff]
 fix = true
