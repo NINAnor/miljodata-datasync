@@ -320,6 +320,7 @@ def check_table_has_data(db_path: str, table_name: str, dataset_name: str) -> bo
     Args:
         db_path: Path to the DuckDB database file
         table_name: Name of the table to check
+        dataset_name: Name of the schema/dataset
 
     Returns:
         bool: True if table exists and has at least one row, False otherwise
@@ -327,35 +328,36 @@ def check_table_has_data(db_path: str, table_name: str, dataset_name: str) -> bo
     try:
         conn = duckdb.connect(db_path, read_only=True)
         try:
-            # check if table exists
-            print(f"Describing table {table_name}")
-            result = conn.execute(f"DESCRIBE {dataset_name}.{table_name}").fetchone()  # noqa: S608
+            log.info(f"Checking table {table_name} existence in schema {dataset_name}")
 
-            print(result)
-
-            log.info(f"Checking table {table_name} existence")
+            check_table_exists = """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = ? AND table_name = ?
+            """
+            result = conn.execute(
+                check_table_exists, [dataset_name, table_name]
+            ).fetchone()
 
             if result is None:
-                log.info(f"Table {table_name} does not exist")
+                log.info(f"Table {table_name} does not exist in schema {dataset_name}")
                 return False
 
-            # check if table has data
-            count_result = conn.execute(
-                f"SELECT COUNT(*) FROM {dataset_name}.{table_name}"  # noqa: S608
-            ).fetchone()
+            qualified_table = f"{dataset_name}.{table_name}"
+            table_relation = conn.table(qualified_table)
+            count_result = table_relation.count("*").fetchone()
+
             row_count = count_result[0] if count_result else 0
 
             log.info(f"Table {table_name} has {row_count} rows")
             return row_count > 0
-        except Exception as e:
-            raise Exception(f"Error checking table {table_name}") from e
+
         finally:
             conn.close()
 
     except Exception as e:
-        log.error(f"Error with database: {e}")
-
-    return False
+        log.error(f"Error checking table {table_name}: {e}")
+        return False
 
 
 @app.command()
