@@ -4,8 +4,10 @@
 
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import dlt
+import duckdb
 import requests
 import typer
 from dlt.sources.helpers.rest_client import RESTClient
@@ -27,6 +29,7 @@ BIOMARK_PREFIX = env("BIOMARK_PREFIX", default="tables")
 BIOMARK_REGION = env("BIOMARK_REGION", default="us-east-1")
 BIOMARK_ACCESS_KEY = env("BIOMARK_ACCESS_KEY", default="")
 BIOMARK_SECRET_KEY = env("BIOMARK_SECRET_KEY", default="")
+BIOMARK_DUCKDB_PATH = env("BIOMARK_DUCKDB_PATH", default="")
 
 app = typer.Typer()
 
@@ -299,12 +302,54 @@ def create_stream_config(config: dict, location: str) -> dict:
     }
 
 
+def check_table_has_data(db_path: str, table_name: str) -> bool:
+    """
+    Check if a table exists and has data in the DuckDB database.
+
+    Args:
+        db_path: Path to the DuckDB database file
+        table_name: Name of the table to check
+
+    Returns:
+        bool: True if table exists and has at least one row, False otherwise
+    """
+    try:
+        conn = duckdb.connect(db_path, read_only=True)
+        try:
+            # check if table exists
+            result = conn.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_name = ?",
+                [table_name],
+            ).fetchone()
+
+            if result is None:
+                log.info(f"Table {table_name} does not exist")
+                return False
+
+            # check if table has data
+            count_result = conn.execute(
+                "SELECT COUNT(*) FROM ?", [table_name]
+            ).fetchone()
+            row_count = count_result[0] if count_result else 0
+
+            log.info(f"Table {table_name} has {row_count} rows")
+            return row_count > 0
+
+        finally:
+            conn.close()
+
+    except Exception as e:
+        log.error(f"Error checking table {table_name}: {e}")
+        return False
+
+
 @app.command()
 def replicate(
     bucket: str = BIOMARK_BUCKET,
     endpoint_url: str = BIOMARK_AWS_ENDPOINT,
     access_key: str = BIOMARK_ACCESS_KEY,
     secret_key: str = BIOMARK_SECRET_KEY,
+    duckdb_path: str = BIOMARK_DUCKDB_PATH,
     region: str = BIOMARK_REGION,
     tags: bool = typer.Option(False, help="Add tags data to S3"),
     readers: bool = typer.Option(False, help="Add readers voltage data to S3"),
@@ -316,21 +361,23 @@ def replicate(
     os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
     os.environ["AWS_REGION"] = region
     os.environ["AWS_ENDPOINT"] = endpoint_url
-    os.environ["DUCKDB"] = (
-        "{type: duckdb, instance: biomark_pit_registering_salmon_v1.duckdb}"
-    )
+    os.environ["DUCKDB"] = f"{{type: duckdb, instance: {duckdb_path}}}"
 
     if not any([readers, tags, environment]):
-        typer.echo(
+        typer.BadParameter(
             "Error: At least one data type must be selected "
             "(--readers, --tags, or --environment)"
         )
         raise typer.Exit(1)
 
-    # Only include configs for enabled data types
+    if not Path(duckdb_path).exists():
+        typer.BadParameter(f"Error: DuckDB file not found at {duckdb_path}")
+        raise typer.Exit(1)
+
+    # only include configs for enabled data types that have data
     stream_configs = {}
 
-    if readers:
+    if readers and check_table_has_data(duckdb_path, "readers_voltage"):
         stream_configs["readers"] = {
             "table_name": "readers_voltage",
             "primary_key": ["read_at"],
@@ -338,8 +385,11 @@ def replicate(
             "time_column": "read_at",
             "location": "reader__site__slug",
         }
+        log.info("Added readers_voltage to stream config (has data)")
+    elif readers:
+        log.warning("--readers_voltage flag is True but table has no data, skipping")
 
-    if tags:
+    if tags and check_table_has_data(duckdb_path, "tags"):
         stream_configs["tags"] = {
             "table_name": "tags",
             "primary_key": ["detected_at"],
@@ -347,8 +397,11 @@ def replicate(
             "time_column": "detected_at",
             "location": "antenna__reader__site__slug",
         }
+        log.info("Added tags to stream config (has data)")
+    elif tags:
+        log.warning("--tags flag is set but table has no data, skipping")
 
-    if environment:
+    if environment and check_table_has_data(duckdb_path, "environment_data"):
         stream_configs["environment"] = {
             "table_name": "environment_data",
             "primary_key": ["read_at"],
@@ -356,6 +409,13 @@ def replicate(
             "time_column": "read_at",
             "location": "reader__site__slug",
         }
+        log.info("Added environment_data to stream config (has data)")
+    elif environment:
+        log.warning("--environment flag is set, but table has no data, skipping")
+
+    if not stream_configs:
+        log.error("No tables with data found to replicate")
+        raise typer.Exit(1)
 
     streams = {}
     for data_type, config in stream_configs.items():
