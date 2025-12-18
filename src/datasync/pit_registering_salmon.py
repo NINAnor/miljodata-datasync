@@ -32,6 +32,7 @@ BIOMARK_SECRET_KEY = env("BIOMARK_SECRET_KEY", default="")
 BIOMARK_DUCKDB_PATH = env(
     "BIOMARK_DUCKDB_PATH", default="biomark_pit_registering_salmon_v1.duckdb"
 )
+BIOMARK_DATASET_NAME = env("BIOMARK_DATASET_NAME", default="")
 
 app = typer.Typer()
 
@@ -219,6 +220,7 @@ def biomark_pit_salmon(
 
 @app.command()
 def run(
+    duckdb_path: str = BIOMARK_DUCKDB_PATH,
     place: str = typer.Option(
         None, help="Site location (kongsfjord, sylte, vigda, agdenes, vatne)"
     ),
@@ -236,6 +238,7 @@ def run(
     ),
     base_url: str = BIOMARK_BASE_URL,
     today: bool = typer.Option(False, help="Set date range to today only"),
+    dataset_name: str = BIOMARK_DATASET_NAME,
 ):
     """Download PIT data from BioMark's API to a .duckdb file."""
 
@@ -267,9 +270,9 @@ def run(
         log.info("Processing single location", location=place)
 
     pipeline = dlt.pipeline(
-        pipeline_name=BIOMARK_DUCKDB_PATH.replace(".duckdb", ""),
+        pipeline_name=duckdb_path.replace(".duckdb", ""),
         destination="duckdb",
-        dataset_name="main",
+        dataset_name=dataset_name,
         progress="log",
     )
 
@@ -310,7 +313,7 @@ def create_stream_config(config: dict, location: str) -> dict:
     }
 
 
-def check_table_has_data(db_path: str, table_name: str) -> bool:
+def check_table_has_data(db_path: str, table_name: str, dataset_name: str) -> bool:
     """
     Check if a table exists and has data in the DuckDB database.
 
@@ -325,10 +328,12 @@ def check_table_has_data(db_path: str, table_name: str) -> bool:
         conn = duckdb.connect(db_path, read_only=True)
         try:
             # check if table exists
-            result = conn.execute(
-                "SELECT table_name FROM information_schema.tables WHERE table_name = ?",
-                [table_name],
-            ).fetchone()
+            print(f"Describing table {table_name}")
+            result = conn.execute(f"DESCRIBE {dataset_name}.{table_name}").fetchone()  # noqa: S608
+
+            print(result)
+
+            log.info(f"Checking table {table_name} existence")
 
             if result is None:
                 log.info(f"Table {table_name} does not exist")
@@ -336,7 +341,7 @@ def check_table_has_data(db_path: str, table_name: str) -> bool:
 
             # check if table has data
             count_result = conn.execute(
-                "SELECT COUNT(*) FROM ?", [table_name]
+                f"SELECT COUNT(*) FROM {dataset_name}.{table_name}"  # noqa: S608
             ).fetchone()
             row_count = count_result[0] if count_result else 0
 
@@ -361,6 +366,7 @@ def replicate(
     secret_key: str = BIOMARK_SECRET_KEY,
     duckdb_path: str = BIOMARK_DUCKDB_PATH,
     region: str = BIOMARK_REGION,
+    dataset_name: str = BIOMARK_DATASET_NAME,
     tags: bool = typer.Option(False, help="Add tags data to S3"),
     readers: bool = typer.Option(False, help="Add readers voltage data to S3"),
     environment: bool = typer.Option(False, help="Add environment data to S3"),
@@ -387,9 +393,9 @@ def replicate(
     # only include configs for enabled data types that have data
     stream_configs = {}
 
-    if readers and check_table_has_data(duckdb_path, "readers_voltage"):
+    if readers and check_table_has_data(duckdb_path, "readers_voltage", dataset_name):
         stream_configs["readers"] = {
-            "table_name": "readers_voltage",
+            "table_name": f"{dataset_name}.readers_voltage",
             "primary_key": ["read_at"],
             "update_key": "read_at",
             "time_column": "read_at",
@@ -399,9 +405,9 @@ def replicate(
     elif readers:
         log.warning("--readers_voltage flag is True but table has no data, skipping")
 
-    if tags and check_table_has_data(duckdb_path, "tags"):
+    if tags and check_table_has_data(duckdb_path, "tags", dataset_name):
         stream_configs["tags"] = {
-            "table_name": "tags",
+            "table_name": f"{dataset_name}.tags",
             "primary_key": ["detected_at"],
             "update_key": "detected_at",
             "time_column": "detected_at",
@@ -411,9 +417,11 @@ def replicate(
     elif tags:
         log.warning("--tags flag is set but table has no data, skipping")
 
-    if environment and check_table_has_data(duckdb_path, "environment_data"):
+    if environment and check_table_has_data(
+        duckdb_path, "environment_data", dataset_name
+    ):
         stream_configs["environment"] = {
-            "table_name": "environment_data",
+            "table_name": f"{dataset_name}.environment_data",
             "primary_key": ["read_at"],
             "update_key": "read_at",
             "time_column": "read_at",
