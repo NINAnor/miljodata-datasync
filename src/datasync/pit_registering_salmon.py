@@ -20,19 +20,20 @@ from .settings import (
     log,
 )
 
-BIOMARK_BASE_URL = env("BIOMARK_BASE_URL", default="https://data3.biomark.com/api/v1/")
 BIOMARK_API_EMAIL = env("BIOMARK_API_EMAIL", default="")
 BIOMARK_API_PWD = env("BIOMARK_API_PWD", default="")
 BIOMARK_AWS_ENDPOINT = env("BIOMARK_AWS_ENDPOINT", default="")
 BIOMARK_BUCKET = env("BIOMARK_BUCKET", default="")
-BIOMARK_PREFIX = env("BIOMARK_PREFIX", default="tables")
-BIOMARK_REGION = env("BIOMARK_REGION", default="us-east-1")
 BIOMARK_ACCESS_KEY = env("BIOMARK_ACCESS_KEY", default="")
 BIOMARK_SECRET_KEY = env("BIOMARK_SECRET_KEY", default="")
+BIOMARK_PREFIX = env("BIOMARK_PREFIX", default="tables")
+BIOMARK_REGION = env("BIOMARK_REGION", default="us-east-1")
+BIOMARK_BASE_URL = env("BIOMARK_BASE_URL", default="https://data3.biomark.com/api/v1/")
+
 BIOMARK_DUCKDB_PATH = env(
     "BIOMARK_DUCKDB_PATH", default="biomark_pit_registering_salmon_v1.duckdb"
 )
-BIOMARK_DATASET_NAME = env("BIOMARK_DATASET_NAME", default="")
+BIOMARK_DATASET_NAME = env("BIOMARK_DATASET_NAME", default="main")
 
 app = typer.Typer()
 
