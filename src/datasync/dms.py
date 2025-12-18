@@ -5,15 +5,18 @@ from pygeometa.schemas.iso19139 import ISO19139OutputSchema
 
 from .libs.helpers import get_anytext
 from .settings import (
-    DMS_ACCESS_KEY,
-    DMS_AWS_ENDPOINT,
-    DMS_BUCKET,
-    DMS_CSW_PREFIX,
-    DMS_DATASETS_BASE,
-    DMS_GEOAPI_PREFIX,
-    DMS_SECRET_KEY,
+    env,
     log,
 )
+
+DMS_DATASETS_BASE = env("DMS_DATASETS_BASE", default="")
+DMS_ACCESS_KEY = env("DMS_ACCESS_KEY", default="")
+DMS_SECRET_KEY = env("DMS_SECRET_KEY", default="")
+DMS_AWS_ENDPOINT = env("DMS_AWS_ENDPOINT", default="")
+DMS_BUCKET = env("DMS_BUCKET", default="")
+DMS_GEOAPI_PREFIX = env("DMS_GEOAPI_PREFIX", default="/geoapi/")
+DMS_CSW_PREFIX = env("DMS_CSW_PREFIX", default="/csw/dms-metadata.parquet")
+
 
 app = typer.Typer()
 

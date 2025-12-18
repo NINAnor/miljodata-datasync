@@ -14,16 +14,19 @@ from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 from sling import Replication
 
 from .settings import (
-    BIOMARK_ACCESS_KEY,
-    BIOMARK_API_EMAIL,
-    BIOMARK_API_PWD,
-    BIOMARK_AWS_ENDPOINT,
-    BIOMARK_BASE_URL,
-    BIOMARK_BUCKET,
-    BIOMARK_REGION,
-    BIOMARK_SECRET_KEY,
+    env,
     log,
 )
+
+BIOMARK_BASE_URL = env("BIOMARK_BASE_URL", default="https://data3.biomark.com/api/v1/")
+BIOMARK_API_EMAIL = env("BIOMARK_API_EMAIL", default="")
+BIOMARK_API_PWD = env("BIOMARK_API_PWD", default="")
+BIOMARK_AWS_ENDPOINT = env("BIOMARK_AWS_ENDPOINT", default="")
+BIOMARK_BUCKET = env("BIOMARK_BUCKET", default="")
+BIOMARK_PREFIX = env("BIOMARK_PREFIX", default="tables")
+BIOMARK_REGION = env("BIOMARK_REGION", default="us-east-1")
+BIOMARK_ACCESS_KEY = env("BIOMARK_ACCESS_KEY", default="")
+BIOMARK_SECRET_KEY = env("BIOMARK_SECRET_KEY", default="")
 
 app = typer.Typer()
 

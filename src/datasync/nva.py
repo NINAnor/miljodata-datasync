@@ -8,17 +8,20 @@ from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
 from .settings import (
-    NVA_ACCESS_KEY,
-    NVA_BASE_URL,
-    NVA_BUCKET,
-    NVA_DUCKDB_NAME,
-    NVA_ENDPOINT,
-    NVA_INSTITUTION_CODE,
-    NVA_PREFIX,
-    NVA_REGION,
-    NVA_SECRET_KEY,
+    env,
     log,
 )
+
+NVA_BASE_URL = env("NVA_BASE_URL", default="https://api.nva.unit.no/")
+NVA_DUCKDB_NAME = env("NVA_DUCKDB_FILE_NAME", default="nva_sync")
+NVA_INSTITUTION_CODE = env("NVA_INSTITUTION_CODE", default="7511.0.0.0")
+NVA_ACCESS_KEY = env("NVA_ACCESS_KEY", default="")
+NVA_SECRET_KEY = env("NVA_SECRET_KEY", default="")
+NVA_ENDPOINT = env("NVA_ENDPOINT", default="")
+NVA_BUCKET = env("NVA_BUCKET", default="")
+NVA_PREFIX = env("NVA_PREFIX", default="nva-test")
+NVA_REGION = env("NVA_REGION", default="us-east-1")
+CRISTIN_DB_PATH = env("CRISTIN_DB_PATH", default="")
 
 app = typer.Typer()
 

@@ -5,17 +5,19 @@ from dlt.sources.credentials import AwsCredentials
 from dlt.sources.rest_api import rest_api_source
 
 from .settings import (
-    UBW_ACCESS_KEY,
-    UBW_AWS_ENDPOINT,
-    UBW_BASE_URL,
-    UBW_BASIC_AUTH,
-    UBW_BUCKET,
-    UBW_PREFIX,
-    UBW_SECRET_KEY,
+    env,
     log,
 )
 
 app = typer.Typer()
+
+UBW_BASE_URL = env("UBW_BASE_URL", default="")
+UBW_BASIC_AUTH = env("UBW_BASIC_AUTH", default="")
+UBW_ACCESS_KEY = env("UBW_ACCESS_KEY", default="")
+UBW_SECRET_KEY = env("UBW_SECRET_KEY", default="")
+UBW_AWS_ENDPOINT = env("UBW_AWS_ENDPOINT", default="")
+UBW_BUCKET = env("UBW_BUCKET", default="")
+UBW_PREFIX = env("UBW_PREFIX", default="")
 
 
 @app.command()
