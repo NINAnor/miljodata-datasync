@@ -22,7 +22,7 @@ AWS_ENDPOINT_URL: str = env.str("IPT_AWS_ENDPOINT_URL")
 AWS_ACCESS_KEY: str = env.str("IPT_AWS_ACCESS_KEY")
 DMS_PROJECT_ID: str = env.str("IPT_DMS_PROJECT_ID", default="911200")
 
-templates = env = Environment(
+templates = Environment(
     loader=FileSystemLoader(pathlib.Path(__file__).parent / "templates"),
     autoescape=select_autoescape(),
 )
