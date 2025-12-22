@@ -15,7 +15,7 @@ from .settings import (
 app = typer.Typer()
 
 
-@app.command
+@app.command()
 def main():
     duckdb_install_extensions()
     duckdb_load_extensions()

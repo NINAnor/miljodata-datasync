@@ -3,7 +3,7 @@ import traceback
 
 import fsspec
 
-from ..settings import env as logger
+from ..settings import log as logger
 from .dwca import get_context_from_metafile
 from .settings import (
     AWS_ENDPOINT_URL,
@@ -34,7 +34,7 @@ def version_to_parquet(resource_id: str, version_id: str):
                 dest.write(source.read())
 
         cursor = conn.cursor()
-        ctx = get_context_from_metafile(resource_path=cache)
+        ctx = get_context_from_metafile(resource_path=str(cache))
         query = templates.get_template("query.sql").render(**ctx, trim_blocks=True)
         logger.info("write to parquet")
         cursor.sql(query).write_parquet(

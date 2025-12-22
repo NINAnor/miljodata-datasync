@@ -2,7 +2,7 @@ import pyarrow as pa
 from lxml import etree
 from pygeometa.schemas.gbif_eml import GBIF_EMLOutputSchema
 
-from ..settings import env as logger
+from ..settings import log as logger
 from .settings import AWS_ENDPOINT_URL, GEOAPI_PATH, RESOURCES_PREFIX, S3_BUCKET, conn
 
 PARSER = etree.XMLParser(resolve_entities=False)
