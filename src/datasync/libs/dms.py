@@ -14,7 +14,24 @@ client = httpx.Client(
 
 @backoff.on_exception(
     backoff.expo,
-    (httpx.HTTPStatusError, httpx.ConnectError),
+    (httpx.ConnectError),
+    max_tries=5,
+    jitter=backoff.full_jitter,
+)
+def create_dms_element(endpoint, element_id, create_data):
+    try:
+        logger.info(f"creating {endpoint[:-1]} {element_id} in DMS")
+        res = client.post(f"{endpoint}/", json=create_data)
+        res.raise_for_status()
+        logger.info("done")
+    except httpx.HTTPStatusError as e:
+        logger.error(e.response.text)
+        raise
+
+
+@backoff.on_exception(
+    backoff.expo,
+    (httpx.ConnectError),
     max_tries=5,
     jitter=backoff.full_jitter,
 )
@@ -36,26 +53,29 @@ def upsert_dms_element(endpoint, element_id, create_data, update_data=None):
 
     try:
         # Check if element exists
-        res = client.get(f"{endpoint}/{element_id}/")
+        url = f"{endpoint}/{element_id}/"
+        logger.debug(url)
+        res = client.get(url)
+        logger.debug("response body", body=res.text)
         res.raise_for_status()
         logger.info(f"{endpoint[:-1]} {element_id} already exists in DMS")
 
         # Update existing element
         logger.info(f"updating {endpoint[:-1]} {element_id} in DMS")
         res = client.patch(f"{endpoint}/{element_id}/", json=update_data)
+        logger.debug("response body", body=res.text)
         res.raise_for_status()
         return False
 
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             # Element doesn't exist, create it
-            logger.info(f"creating {endpoint[:-1]} {element_id} in DMS")
-            res = client.post(f"{endpoint}/", json=create_data)
-            res.raise_for_status()
-            logger.info("done")
+            create_dms_element(
+                element_id=element_id, endpoint=endpoint, create_data=create_data
+            )
             return True
         else:
-            print(e.response.text)
+            logger.error(e.response.text)
             # Other HTTP error, re-raise
             raise
 
