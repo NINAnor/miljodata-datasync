@@ -17,6 +17,7 @@ def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
     layers = con.read_parquet(parquet_file_path)
 
     resources = (
+        # 1. Remove the GISBASE from the file path, trim also eventual " or / from the file string  # noqa: E501
         layers.select(
             *[
                 duckdb.StarExpression(),
@@ -36,6 +37,7 @@ def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
                 ).alias("cleaned_file"),
             ]
         )
+        # 2. extract location, mapset, type and resource from the cleaned filepath
         .select(
             *[
                 duckdb.StarExpression(),
@@ -65,6 +67,7 @@ def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
                 ).alias("resource"),
             ]
         )
+        # 3. produce something that can be used as dataset_id
         .select(
             *[
                 duckdb.StarExpression(),
@@ -84,6 +87,8 @@ def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
     )
     log.info(datasets)
 
+    # version will be based on the date of execution
+    # since this script cannot be executed in a cron job
     version = datetime.datetime.now().strftime("%Y%m%d")
 
     for d in datasets.to_arrow_table().to_pylist():
@@ -102,7 +107,13 @@ def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
         )
 
     for d in resources.to_arrow_table().to_pylist():
+        # DMS requires a resource URI, but Grass GIS doesn't provide anything like that
+        # the only valid reference is Grass is mapname@mapset
+        # the prefix grass: is not a standard
+        # the query parameters GISBASE and LOCATION_NAME are actually valid env variables for grass gis  # noqa: E501
+        # type is an additional query param to add differentiate between raster and vectors  # noqa: E501
         uri = f"grass:{d.get('resource')}@{d.get('mapset')}?GISBASE={gisbase}&LOCATION_NAME={d.get('location')}&type={d.get('type')}"  # noqa: E501
+        # NOTE: it's necessary to add a type, some resources otherwise have the same name between rasters and vectors  # noqa: E501
         resource_id = f"{d.get('dataset_id')}-{d.get('resource')}-{d.get('type')}"
         metadata = json.loads(d.get("metadata"))
         dms.upsert_dms_element(
