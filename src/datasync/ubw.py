@@ -9,7 +9,7 @@ from .settings import (
     log,
 )
 
-app = typer.Typer()
+app = typer.Typer(help="Export UBW APIs to Parquet in S3 bucket")
 
 UBW_BASE_URL = env("UBW_BASE_URL", default="")
 UBW_BASIC_AUTH = env("UBW_BASIC_AUTH", default="")
