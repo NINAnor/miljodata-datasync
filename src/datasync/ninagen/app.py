@@ -1,3 +1,3 @@
 import typer
 
-app = typer.Typer()
+app = typer.Typer(help="Commands to handle NINAGEN tasks")

@@ -1,0 +1,15 @@
+site_name: Miljødata Data Sync
+theme:
+  name: material
+  palette:
+    primary: teal
+    accent: amber
+
+plugins:
+  - search
+  - mkdocs-typer2:
+      pretty: true
+
+watch:
+  - docs
+  - src
