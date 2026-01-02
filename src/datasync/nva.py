@@ -23,7 +23,7 @@ NVA_PREFIX = env("NVA_PREFIX", default="nva-test")
 NVA_REGION = env("NVA_REGION", default="us-east-1")
 CRISTIN_DB_PATH = env("CRISTIN_DB_PATH", default="")
 
-app = typer.Typer()
+app = typer.Typer(help="export NVA APIs to Parquet on a S3 Bucket")
 
 
 def get_funding_sources(client: RESTClient):
