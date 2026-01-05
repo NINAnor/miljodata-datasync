@@ -4,12 +4,8 @@ import httpx
 from ..settings import env
 from ..settings import log as logger
 
-DMS_API_URL: str = env.str("DMS_API_URL")
-DMS_API_TOKEN: str = env.str("DMS_TOKEN")
-
-client = httpx.Client(
-    base_url=DMS_API_URL, headers={"Authorization": f"Token {DMS_API_TOKEN}"}
-)
+DMS_API_URL: str = env.str("DMS_API_URL", "")
+DMS_API_TOKEN: str = env.str("DMS_TOKEN", "")
 
 
 @backoff.on_exception(
@@ -18,7 +14,7 @@ client = httpx.Client(
     max_tries=5,
     jitter=backoff.full_jitter,
 )
-def create_dms_element(endpoint, element_id, create_data):
+def create_dms_element(client, endpoint, element_id, create_data):
     try:
         logger.info(f"creating {endpoint[:-1]} {element_id} in DMS")
         res = client.post(f"{endpoint}/", json=create_data)
@@ -35,7 +31,14 @@ def create_dms_element(endpoint, element_id, create_data):
     max_tries=5,
     jitter=backoff.full_jitter,
 )
-def upsert_dms_element(endpoint, element_id, create_data, update_data=None):
+def upsert_dms_element(
+    endpoint,
+    element_id,
+    create_data,
+    update_data=None,
+    base_url: str = DMS_API_URL,
+    token: str = DMS_API_TOKEN,
+):
     """
     Generic function to upsert (create or update) a DMS API element.
 
@@ -48,6 +51,10 @@ def upsert_dms_element(endpoint, element_id, create_data, update_data=None):
     Returns:
         bool: True if element was created, False if updated
     """
+    client = httpx.Client(
+        base_url=base_url, headers={"Authorization": f"Token {token}"}
+    )
+
     if update_data is None:
         update_data = create_data.copy()
 
@@ -71,7 +78,10 @@ def upsert_dms_element(endpoint, element_id, create_data, update_data=None):
         if e.response.status_code == 404:
             # Element doesn't exist, create it
             create_dms_element(
-                element_id=element_id, endpoint=endpoint, create_data=create_data
+                client=client,
+                element_id=element_id,
+                endpoint=endpoint,
+                create_data=create_data,
             )
             return True
         else:
