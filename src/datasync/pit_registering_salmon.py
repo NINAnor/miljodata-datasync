@@ -102,14 +102,40 @@ def get_environmental_data(
         log.debug(
             "Fetching environmental data for location", location_code=location_code
         )
-        yield from client.paginate(
-            f"enviro/{location_code}",
-            method="get",
-            params={
-                "begin_dt": begin_date,
-                "end_dt": end_date,
-            },
-        )
+        try:
+            yield from client.paginate(
+                f"enviro/{location_code}",
+                method="get",
+                params={
+                    "begin_dt": begin_date,
+                    "end_dt": end_date,
+                },
+            )
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 403:
+                log.warning(
+                    f"403 Forbidden error for environmental data at location "
+                    f"{location_code}. Skipping this location.",
+                    location_code=location_code,
+                    error=str(e),
+                )
+            else:
+                log.error(
+                    f"HTTP error fetching environmental data for location "
+                    f"{location_code}",
+                    location_code=location_code,
+                    status_code=e.response.status_code if e.response else None,
+                    error=str(e),
+                )
+            continue
+        except Exception as e:
+            log.error(
+                f"Unexpected error fetching environmental data for location "
+                f"{location_code}",
+                location_code=location_code,
+                error=str(e),
+            )
+            continue
 
 
 def get_tags_data(
@@ -119,14 +145,38 @@ def get_tags_data(
     for location_name in locations:
         location_code = SITES.get(location_name)
         log.debug("Fetching tags data for location", location_code=location_code)
-        yield from client.paginate(
-            f"tags/{location_code}",
-            method="get",
-            params={
-                "begin_dt": begin_date,
-                "end_dt": end_date,
-            },
-        )
+        try:
+            yield from client.paginate(
+                f"tags/{location_code}",
+                method="get",
+                params={
+                    "begin_dt": begin_date,
+                    "end_dt": end_date,
+                },
+            )
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 403:
+                log.warning(
+                    f"403 Forbidden error for tags data at location "
+                    f"{location_code}. Skipping this location.",
+                    location_code=location_code,
+                    error=str(e),
+                )
+            else:
+                log.error(
+                    f"HTTP error fetching tags data for location {location_code}",
+                    location_code=location_code,
+                    status_code=e.response.status_code if e.response else None,
+                    error=str(e),
+                )
+            continue
+        except Exception as e:
+            log.error(
+                f"Unexpected error fetching tags data for location {location_code}",
+                location_code=location_code,
+                error=str(e),
+            )
+            continue
 
 
 def get_readers_voltage_data(
@@ -139,14 +189,40 @@ def get_readers_voltage_data(
         log.debug(
             "Fetching readers voltage data for location", location_code=location_code
         )
-        yield from client.paginate(
-            f"reader/{location_code}",
-            method="get",
-            params={
-                "begin_dt": begin_date,
-                "end_dt": end_date,
-            },
-        )
+        try:
+            yield from client.paginate(
+                f"reader/{location_code}",
+                method="get",
+                params={
+                    "begin_dt": begin_date,
+                    "end_dt": end_date,
+                },
+            )
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 403:
+                log.warning(
+                    f"403 Forbidden error for readers voltage data at location "
+                    f"{location_code}. Skipping this location.",
+                    location_code=location_code,
+                    error=str(e),
+                )
+            else:
+                log.error(
+                    f"HTTP error fetching readers voltage data for location"
+                    f"{location_code}",
+                    location_code=location_code,
+                    status_code=e.response.status_code if e.response else None,
+                    error=str(e),
+                )
+            continue
+        except Exception as e:
+            log.error(
+                f"Unexpected error fetching readers voltage data for location "
+                f"{location_code}",
+                location_code=location_code,
+                error=str(e),
+            )
+            continue
 
 
 @dlt.transformer(primary_key=["tag", "detected_at"])
