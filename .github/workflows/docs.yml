@@ -21,7 +21,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      - name: check
+        run: uv run typer datasync.main utils docs
+
       - run: uv run mkdocs build
+        name: build with mkdocs
 
       - name: Upload static files as artifact
         id: deployment
