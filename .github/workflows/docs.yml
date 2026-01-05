@@ -3,11 +3,12 @@ on:
   push:
     branches:
       - main
-permissions:
-  contents: write
+
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -20,4 +21,24 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - run: uv run mkdocs gh-deploy --force
+      - run: uv run mkdocs build
+
+      - name: Upload static files as artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v3 # or specific "vX.X.X" version tag for this action
+        with:
+          path: site/
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4 # or specific "vX.X.X" version tag for this action
