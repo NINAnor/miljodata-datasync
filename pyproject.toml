@@ -25,7 +25,7 @@ dependencies = [
   "typer>=0.20.0",
   "pygeometa @ git+https://github.com/nicokant/pygeometa@gbif-eml#egg=pygeometa",
   "orjson>=3.11.4",
-  "duckdb>=1.4.2",
+  "duckdb>=1.4.3",
   "lxml>=6.0.2",
   "openpyxl>=3.1.5",
   "python-calamine>=0.6.1",
@@ -41,7 +41,7 @@ dependencies = [
   "httpx>=0.28.1",
   "setuptools>=65.5.0",
   "backoff>=2.1.0",
-  "pyyaml>=6.0.3"
+  "pyyaml>=6.0.3",
 ]
 description = ""
 license = "GPL-3.0+"
