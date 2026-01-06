@@ -2,6 +2,7 @@ import re
 
 from lxml import etree
 from lxml.etree import _Element
+from pyarrow import csv
 
 PARSER: etree.XMLParser = etree.XMLParser(resolve_entities=False)
 
@@ -29,3 +30,15 @@ def get_anytext(bag: str | _Element | list[str]) -> str:
         # NOTE: this should never happen as the xpath evaluation always returns a list
         # but the type annotation is generic as xpath might return any type
         raise TypeError("xpath result was not a list of strings")
+
+
+TSV_PARSE_OPTIONS = csv.ParseOptions(
+    delimiter="\t", quote_char=False, double_quote=False
+)
+
+
+def pa_read_tsv(archive, filename):
+    return csv.read_csv(
+        archive.open(filename),
+        parse_options=TSV_PARSE_OPTIONS,
+    )
