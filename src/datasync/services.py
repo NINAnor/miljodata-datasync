@@ -18,7 +18,7 @@ AWS_ENDPOINT = env("SERVICES_AWS_ENDPOINT", default=None)
 AWS_ACCESS_KEY = env("SERVICES_AWS_ACCESS_KEY", default=None)
 AWS_SECRET_KEY = env("SERVICES_AWS_SECRET_KEY", default=None)
 
-SERVICES_REPO = env("SERVICES_REPO", None)
+SERVICES_REPO = env("SERVICES_REPO", default=None)
 SERVICES_ORG = env("SERVICES_ORG", default="ninanor")
 
 PARQUET_PREFIX = env("SERVICES_STORAGE_PREFIX", default="/dms/tables")
