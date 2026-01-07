@@ -160,7 +160,7 @@ def services_to_parquet(
 DASHBOARD_PREFIX = env("SERVICES_DASHBOARD_PREFIX", default="/dms/services")
 
 
-DASHBOARD_REPO = env("SERVICES_DASHBOARD_REPO", None)
+DASHBOARD_REPO = env("SERVICES_DASHBOARD_REPO", default=None)
 DASHBOARD_ORG = env("SERVICES_DASHBOARD_ORG", default="ninanor")
 
 
