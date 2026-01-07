@@ -112,7 +112,7 @@ def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
         # the prefix grass: is not a standard
         # the query parameters GISBASE and LOCATION_NAME are actually valid env variables for grass gis  # noqa: E501
         # type is an additional query param to add differentiate between raster and vectors  # noqa: E501
-        uri = f"grass:{d.get('resource')}@{d.get('mapset')}?GISBASE={gisbase}&LOCATION_NAME={d.get('location')}&type={d.get('type')}"  # noqa: E501
+        uri = f"grass://{d.get('resource')}@{gisbase}/{d.get('location')}/{d.get('mapset')}?type={d.get('type')}"  # noqa: E501
         # NOTE: it's necessary to add a type, some resources otherwise have the same name between rasters and vectors  # noqa: E501
         resource_id = f"{d.get('dataset_id')}-{d.get('resource')}-{d.get('type')}"
         metadata = json.loads(d.get("metadata"))
