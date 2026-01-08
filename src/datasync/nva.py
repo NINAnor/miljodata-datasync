@@ -146,6 +146,10 @@ def run(
     prefix: str = NVA_PREFIX,
     region: str = NVA_REGION,
 ):
+    if not endpoint_url or not access_key or not secret_key or not bucket:
+        log.error("AWS S3 credentials and bucket information must be provided")
+        raise typer.Exit(code=1)
+
     credentials = AwsCredentials(
         s3_url_style="path",
         endpoint_url=endpoint_url,
