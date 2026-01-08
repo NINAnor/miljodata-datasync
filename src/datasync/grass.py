@@ -10,6 +10,20 @@ from .settings import log
 app = Typer()
 
 
+def trim_color_table(metadata: dict) -> dict:
+    """
+    Remove colorTable entries from gdal json output
+    """
+    bands = metadata.get("bands", [])
+
+    for idx, band in enumerate(bands[:]):
+        if "colorTable" in band:
+            metadata["bands"][idx]["colorTable"]["entries"] = []
+            log.debug("trimming...")
+
+    return metadata
+
+
 @app.command()
 def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
     log.debug("using file", file=parquet_file_path)
@@ -115,7 +129,7 @@ def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
         uri = f"grass://{d.get('resource')}@{gisbase}/{d.get('location')}/{d.get('mapset')}?type={d.get('type')}"  # noqa: E501
         # NOTE: it's necessary to add a type, some resources otherwise have the same name between rasters and vectors  # noqa: E501
         resource_id = f"{d.get('dataset_id')}-{d.get('resource')}-{d.get('type')}"
-        metadata = json.loads(d.get("metadata"))
+        metadata = trim_color_table(json.loads(d.get("metadata")))
         dms.upsert_dms_element(
             "tabularresources" if d.get("type") == "vector" else "rasterresources",
             resource_id,
