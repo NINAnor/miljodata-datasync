@@ -23,7 +23,7 @@ NVA_PREFIX = env("NVA_PREFIX", default="nva-test")
 NVA_REGION = env("NVA_REGION", default="us-east-1")
 CRISTIN_DB_PATH = env("CRISTIN_DB_PATH", default="")
 
-app = typer.Typer(help="export NVA APIs to Parquet on a S3 Bucket")
+app = typer.Typer(help="Export NVA APIs to Parquet on a S3 Bucket")
 
 
 def get_funding_sources(client: RESTClient):
@@ -76,7 +76,7 @@ def get_resources(client: RESTClient, institution_code: str):
 def nva(
     base_url: str = NVA_BASE_URL,
     institution_code: str = NVA_INSTITUTION_CODE,
-    no_resources: bool = False,
+    resources: bool = False,
     projects: bool = False,
     persons: bool = False,
     categories: bool = False,
@@ -88,7 +88,7 @@ def nva(
         data_selector="hits",
     )
 
-    if not no_resources:
+    if resources:
         yield dlt.resource(
             get_resources(client, institution_code),
             name="resources",
@@ -132,7 +132,7 @@ def nva(
 
 @app.command()
 def run(
-    no_resources: bool = False,
+    resources: bool = False,
     projects: bool = False,
     persons: bool = False,
     categories: bool = False,
@@ -158,6 +158,7 @@ def run(
     pipeline = dlt.pipeline(
         pipeline_name=duckdb_name,
         destination=filesystem(
+            region=region,
             bucket_url=f"s3://{bucket}/" + prefix,
             credentials=credentials,
             layout="{table_name}.{ext}",
@@ -171,7 +172,7 @@ def run(
             nva(
                 base_url=base_url,
                 institution_code=institution_code,
-                no_resources=no_resources,
+                resources=resources,
                 projects=projects,
                 persons=persons,
                 categories=categories,
