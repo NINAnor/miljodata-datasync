@@ -17,7 +17,7 @@ NVA_DUCKDB_NAME = env("NVA_DUCKDB_FILE_NAME", default="nva_sync")
 NVA_INSTITUTION_CODE = env("NVA_INSTITUTION_CODE", default="7511.0.0.0")
 NVA_ACCESS_KEY = env("AWS_ACCESS_KEY", default="")
 NVA_SECRET_KEY = env("AWS_SECRET_KEY", default="")
-NVA_ENDPOINT = env("AWS_ENDPOINT", default="s3-int-1.nina.no")
+NVA_ENDPOINT = "https://s3-int-1.nina.no"
 NVA_BUCKET = env("NVA_BUCKET", default="nva")
 NVA_PREFIX = env("NVA_PREFIX", default="nva")
 NVA_REGION = env("NVA_REGION", default="us-east-1")
