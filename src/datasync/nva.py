@@ -152,13 +152,13 @@ def run(
         endpoint_url=endpoint_url,
         aws_secret_access_key=secret_key,
         aws_access_key_id=access_key,
-        region_name="",
+        region_name=region,
     )
 
     pipeline = dlt.pipeline(
         pipeline_name=duckdb_name,
         destination=filesystem(
-            region=region,
+            region_name=region,
             bucket_url=f"s3://{bucket}/" + prefix,
             credentials=credentials,
             layout="{table_name}.{ext}",
