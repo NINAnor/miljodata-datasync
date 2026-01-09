@@ -19,7 +19,7 @@ NVA_INSTITUTION_CODE = env("NVA_INSTITUTION_CODE", default="7511.0.0.0")
 NVA_ACCESS_KEY = env("NVA_ACCESS_KEY", default="")
 NVA_SECRET_KEY = env("NVA_SECRET_KEY", default="")
 NVA_ENDPOINT = env("NVA_ENDPOINT", default="")
-NVA_BUCKET = env("NVA_BUCKET", default="dms")
+NVA_BUCKET = env("NVA_BUCKET", default="")
 
 NVA_PREFIX = env("NVA_PREFIX", default="nva")
 NVA_REGION = env("NVA_REGION", default="us-east-1")
