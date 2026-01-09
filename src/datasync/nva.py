@@ -194,6 +194,11 @@ def run(
         )
     )
 
+    log.info("NVA data sync completed")
+    log.info(
+        f"Data available at: {endpoint_url.replace('https://', '')}/{bucket}/{prefix}"
+    )
+
 
 if __name__ == "__main__":
     app()
