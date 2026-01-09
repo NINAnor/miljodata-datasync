@@ -30,7 +30,7 @@ def get_funding_sources(client: RESTClient):
     log.debug("Fetching funding sources")
     yield from client.paginate(
         "cristin/funding-sources",
-        method="get",
+        method="GET",
     )
 
 
@@ -38,7 +38,7 @@ def get_persons(client: RESTClient, institution_code: str):
     log.debug("Fetching persons")
     yield from client.paginate(
         f"cristin/organization/{institution_code}/persons",
-        method="get",
+        method="GET",
     )
 
 
@@ -46,7 +46,7 @@ def get_projects(client: RESTClient, institution_code: str):
     log.debug("Fetching projects")
     yield from client.paginate(
         f"cristin/organization/{institution_code}/projects",
-        method="get",
+        method="GET",
     )
 
 
@@ -54,7 +54,7 @@ def get_categories(client: RESTClient):
     log.debug("Fetching categories")
     yield from client.paginate(
         "cristin/category/project",
-        method="get",
+        method="GET",
     )
 
 
@@ -63,7 +63,7 @@ def get_resources(client: RESTClient, institution_code: str):
         log.debug("Fetching resources for year", year=year)
         yield from client.paginate(
             "search/resources",
-            method="get",
+            method="GET",
             params={
                 "unit": institution_code,
                 "publicationYearSince": year,

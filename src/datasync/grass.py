@@ -59,25 +59,25 @@ def register_layers(parquet_file_path: str, project_number: str, gisbase: str):
                     "split_part",
                     duckdb.ColumnExpression("cleaned_file"),
                     duckdb.ConstantExpression("/"),
-                    duckdb.ConstantExpression(1),
+                    duckdb.ConstantExpression("1"),
                 ).alias("location"),
                 duckdb.FunctionExpression(
                     "split_part",
                     duckdb.ColumnExpression("cleaned_file"),
                     duckdb.ConstantExpression("/"),
-                    duckdb.ConstantExpression(2),
+                    duckdb.ConstantExpression("2"),
                 ).alias("mapset"),
                 duckdb.FunctionExpression(
                     "split_part",
                     duckdb.ColumnExpression("cleaned_file"),
                     duckdb.ConstantExpression("/"),
-                    duckdb.ConstantExpression(3),
+                    duckdb.ConstantExpression("3"),
                 ).alias("type"),
                 duckdb.FunctionExpression(
                     "split_part",
                     duckdb.ColumnExpression("cleaned_file"),
                     duckdb.ConstantExpression("/"),
-                    duckdb.ConstantExpression(4),
+                    duckdb.ConstantExpression("4"),
                 ).alias("resource"),
             ]
         )
