@@ -160,10 +160,10 @@ def run(
     log.info("Starting NVA data sync")
     log.info(
         "Credentials and bucket info provided:\n",
-        f"Endpoint: {endpoint_url}",
-        f"Bucket: {bucket}",
-        f"Region: {region}",
-        f"Prefix: {prefix}",
+        f"Endpoint: {str(endpoint_url)}",
+        f"Bucket: {(str(bucket))}",
+        f"Region: {str(region)}",
+        f"Prefix: {str(prefix)}",
     )
     credentials = AwsCredentials(
         s3_url_style="path",
