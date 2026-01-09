@@ -146,8 +146,14 @@ def run(
     prefix: str = NVA_PREFIX,
     region: str = NVA_REGION,
 ):
-    if not endpoint_url or not access_key or not secret_key or not bucket:
-        log.error("AWS S3 credentials and bucket information must be provided")
+    if not endpoint_url:
+        log.error("AWS S3 endpoint URL is not provided")
+        raise typer.Exit(code=1)
+    if not access_key:
+        log.error("AWS access key is not provided")
+        raise typer.Exit(code=1)
+    if not secret_key:
+        log.error("AWS secret key is not provided")
         raise typer.Exit(code=1)
 
     log.info("Starting NVA data sync")
