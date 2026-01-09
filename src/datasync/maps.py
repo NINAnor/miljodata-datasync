@@ -7,11 +7,18 @@ from owslib.wms import WebMapService
 
 from .settings import log
 
-app = typer.Typer()
+app = typer.Typer(help="Scripts related to the generation of NINA maps")
 
 
-@app.command()
-def wms_to_map(get_capabilities_url: str, output: str = "output.json"):
+@app.command(help="convert a wms resource to a configuration for NINA maps")
+def wms_to_map(
+    get_capabilities_url: str = typer.Argument(
+        help="The URL of the get capabilities of a WMS service"
+    ),
+    output: str = typer.Option(
+        default="output.json", help="Path of the output json file"
+    ),
+):
     wms = WebMapService(get_capabilities_url)
     log.info(wms.contents)
 
@@ -95,6 +102,7 @@ def wms_to_map(get_capabilities_url: str, output: str = "output.json"):
         "icon": "https://s3-ext-1.nina.no/dms/maps/logosmall-BFfoJdyr.png",
         "baseMap": "positron",
         "layerOrder": [],
+        # TODO: make this configurable or automatic based on the resource
         "viewState": {"longitude": 17.8, "latitude": 65.6, "zoom": 2},
         "expandedItems": [],
         "items": {
