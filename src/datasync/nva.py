@@ -151,20 +151,13 @@ def run(
         log.error("AWS S3 endpoint URL is not provided")
         raise typer.Exit(code=1)
     if not access_key:
-        log.error("AWS access key is not provided")
+        log.error("AWS S3 Bucket access key is not provided")
         raise typer.Exit(code=1)
     if not secret_key:
-        log.error("AWS secret key is not provided")
+        log.error("AWS S3 Bucket secret key is not provided")
         raise typer.Exit(code=1)
 
     log.info("Starting NVA data sync")
-    log.info(
-        "Credentials and bucket info provided:\n",
-        f"Endpoint: {str(endpoint_url)}",
-        f"Bucket: {(str(bucket))}",
-        f"Region: {str(region)}",
-        f"Prefix: {str(prefix)}",
-    )
     credentials = AwsCredentials(
         s3_url_style="path",
         endpoint_url="https://" + endpoint_url,
