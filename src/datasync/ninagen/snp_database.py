@@ -29,9 +29,9 @@ def snp_database_normalize(
     fixed_header = []
     for i, v in enumerate(header):
         if not v:
-            fixed_header.append(header[i - 1] + "_Alle2")
+            fixed_header.append(f"{header[i - 1]}_Alle2")
         else:
-            fixed_header.append(v + "_Alle1" if i > 4 else v)
+            fixed_header.append(f"{v}_Alle1" if i > 4 else v)
 
     table = db.sql(f"""install excel; load excel;
         select *

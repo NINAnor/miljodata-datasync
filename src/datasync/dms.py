@@ -28,7 +28,7 @@ def guess_type(driver: str) -> str:
     return "image/tiff"
 
 
-def to_iso19139(metadata: dict) -> str:
+def to_iso19139(metadata: str) -> str | dict:
     loaded = orjson.loads(metadata)
     log.debug(loaded, id=loaded.get("identification", {}).get("identifier"))
     try:
@@ -123,7 +123,10 @@ def generate_csw_metadata(
 
     descriptions_structure = datasets.aggregate(
         "json_group_structure(metadata->'$.descriptions[*]') as stucture"
-    ).fetchone()[0]
+    ).fetchone()
+    descriptions_structure = (
+        descriptions_structure[0] if descriptions_structure else None
+    )
 
     log.debug("Generated schema of abstract", structure=descriptions_structure)
 
@@ -438,7 +441,10 @@ def generate_geoapi_config(
 
     descriptions_structure = datasets.aggregate(
         "json_group_structure(metadata->'$.descriptions[*]') as stucture"
-    ).fetchone()[0]
+    ).fetchone()
+    descriptions_structure = (
+        descriptions_structure[0] if descriptions_structure else None
+    )
 
     descriptions = (
         (

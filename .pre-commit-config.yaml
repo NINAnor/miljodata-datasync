@@ -67,3 +67,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty check
+        entry: uv run ty check src
+        language: system
+        types: [python]
+        pass_filenames: false

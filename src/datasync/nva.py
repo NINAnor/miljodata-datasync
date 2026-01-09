@@ -15,13 +15,14 @@ from .settings import (
 NVA_BASE_URL = env("NVA_BASE_URL", default="https://api.nva.unit.no/")
 NVA_DUCKDB_NAME = env("NVA_DUCKDB_FILE_NAME", default="nva_sync")
 NVA_INSTITUTION_CODE = env("NVA_INSTITUTION_CODE", default="7511.0.0.0")
+
 NVA_ACCESS_KEY = env("NVA_ACCESS_KEY", default="")
 NVA_SECRET_KEY = env("NVA_SECRET_KEY", default="")
 NVA_ENDPOINT = env("NVA_ENDPOINT", default="")
 NVA_BUCKET = env("NVA_BUCKET", default="")
-NVA_PREFIX = env("NVA_PREFIX", default="nva-test")
+
+NVA_PREFIX = env("NVA_PREFIX", default="nva")
 NVA_REGION = env("NVA_REGION", default="us-east-1")
-CRISTIN_DB_PATH = env("CRISTIN_DB_PATH", default="")
 
 app = typer.Typer(help="Export NVA APIs to Parquet on a S3 Bucket")
 
@@ -30,7 +31,7 @@ def get_funding_sources(client: RESTClient):
     log.debug("Fetching funding sources")
     yield from client.paginate(
         "cristin/funding-sources",
-        method="get",
+        method="GET",
     )
 
 
@@ -38,7 +39,7 @@ def get_persons(client: RESTClient, institution_code: str):
     log.debug("Fetching persons")
     yield from client.paginate(
         f"cristin/organization/{institution_code}/persons",
-        method="get",
+        method="GET",
     )
 
 
@@ -46,7 +47,7 @@ def get_projects(client: RESTClient, institution_code: str):
     log.debug("Fetching projects")
     yield from client.paginate(
         f"cristin/organization/{institution_code}/projects",
-        method="get",
+        method="GET",
     )
 
 
@@ -54,7 +55,7 @@ def get_categories(client: RESTClient):
     log.debug("Fetching categories")
     yield from client.paginate(
         "cristin/category/project",
-        method="get",
+        method="GET",
     )
 
 
@@ -63,7 +64,7 @@ def get_resources(client: RESTClient, institution_code: str):
         log.debug("Fetching resources for year", year=year)
         yield from client.paginate(
             "search/resources",
-            method="get",
+            method="GET",
             params={
                 "unit": institution_code,
                 "publicationYearSince": year,
@@ -147,6 +148,18 @@ def run(
     prefix: str = NVA_PREFIX,
     region: str = NVA_REGION,
 ):
+    if not endpoint_url:
+        log.error("AWS S3 endpoint URL is not provided")
+        raise typer.Exit(code=1)
+    if not access_key:
+        log.error("AWS S3 Bucket access key is not provided")
+        raise typer.Exit(code=1)
+    if not secret_key:
+        log.error("AWS S3 Bucket secret key is not provided")
+        raise typer.Exit(code=1)
+
+    log.info("Starting NVA data sync")
+    log.info(f"Data will be available at: {endpoint_url}/{bucket}/{prefix}")
     credentials = AwsCredentials(
         s3_url_style="path",
         endpoint_url=endpoint_url,
@@ -182,6 +195,9 @@ def run(
             loader_file_format="parquet",
         )
     )
+
+    log.info("NVA data sync completed")
+    log.info(f"Data available at: {endpoint_url}/{bucket}/{prefix}")
 
 
 if __name__ == "__main__":

@@ -105,7 +105,7 @@ def get_environmental_data(
         try:
             yield from client.paginate(
                 f"enviro/{location_code}",
-                method="get",
+                method="GET",
                 params={
                     "begin_dt": begin_date,
                     "end_dt": end_date,
@@ -148,7 +148,7 @@ def get_tags_data(
         try:
             yield from client.paginate(
                 f"tags/{location_code}",
-                method="get",
+                method="GET",
                 params={
                     "begin_dt": begin_date,
                     "end_dt": end_date,
@@ -192,7 +192,7 @@ def get_readers_voltage_data(
         try:
             yield from client.paginate(
                 f"reader/{location_code}",
-                method="get",
+                method="GET",
                 params={
                     "begin_dt": begin_date,
                     "end_dt": end_date,
@@ -236,10 +236,10 @@ def add_decimal_tags(items):
 
 @dlt.source()
 def biomark_pit_salmon(
+    begin_date: str,
+    end_date: str,
+    locations: list[str],
     base_url: str = BIOMARK_BASE_URL,
-    begin_date: str = None,
-    end_date: str = None,
-    locations: list = None,
     tags: bool = False,
     readers: bool = False,
     environment: bool = False,
