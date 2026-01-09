@@ -16,10 +16,10 @@ NVA_BASE_URL = env("NVA_BASE_URL", default="https://api.nva.unit.no/")
 NVA_DUCKDB_NAME = env("NVA_DUCKDB_FILE_NAME", default="nva_sync")
 NVA_INSTITUTION_CODE = env("NVA_INSTITUTION_CODE", default="7511.0.0.0")
 
-NVA_ACCESS_KEY = env("AWS_ACCESS_KEY", default="")
-NVA_SECRET_KEY = env("AWS_SECRET_KEY", default="")
-NVA_ENDPOINT = env("AWS_ENDPOINT", default="https://s3-int-1.nina.no")
-NVA_BUCKET = env("AWS_BUCKET", default="dms")
+NVA_ACCESS_KEY = env("NVA_ACCESS_KEY", default="")
+NVA_SECRET_KEY = env("NVA_SECRET_KEY", default="")
+NVA_ENDPOINT = env("NVA_ENDPOINT", default="https://s3-int-1.nina.no")
+NVA_BUCKET = env("NVA_BUCKET", default="dms")
 
 NVA_PREFIX = env("NVA_PREFIX", default="nva")
 NVA_REGION = env("NVA_REGION", default="us-east-1")
@@ -159,7 +159,7 @@ def run(
         raise typer.Exit(code=1)
 
     log.info("Starting NVA data sync")
-    log.info(f"Data will be available at: https://{endpoint_url}/{bucket}/{prefix}")
+    log.info(f"Data will be available at: {endpoint_url}/{bucket}/{prefix}")
     credentials = AwsCredentials(
         s3_url_style="path",
         endpoint_url=endpoint_url,
@@ -197,9 +197,7 @@ def run(
     )
 
     log.info("NVA data sync completed")
-    log.info(
-        f"Data available at: {endpoint_url.replace('https://', '')}/{bucket}/{prefix}"
-    )
+    log.info(f"Data available at: {endpoint_url}/{bucket}/{prefix}")
 
 
 if __name__ == "__main__":
