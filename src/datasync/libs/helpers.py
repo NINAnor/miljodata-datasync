@@ -1,8 +1,8 @@
 import re
 
+from duckdb import DuckDBPyConnection
 from lxml import etree
 from lxml.etree import _Element
-from pyarrow import csv
 
 PARSER: etree.XMLParser = etree.XMLParser(resolve_entities=False)
 
@@ -32,13 +32,16 @@ def get_anytext(bag: str | _Element | list[str]) -> str:
         raise TypeError("xpath result was not a list of strings")
 
 
-TSV_PARSE_OPTIONS = csv.ParseOptions(
-    delimiter="\t", quote_char=False, double_quote=False
-)
+class DuckDBAtomicTransaction:
+    def __init__(self, conn: DuckDBPyConnection):
+        self.conn = conn
 
+    def __enter__(self):
+        self.conn.begin()
+        return self.conn
 
-def pa_read_tsv(archive, filename):
-    return csv.read_csv(
-        archive.open(filename),
-        parse_options=TSV_PARSE_OPTIONS,
-    )
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
+            self.conn.commit()
+        else:
+            self.conn.rollback()
