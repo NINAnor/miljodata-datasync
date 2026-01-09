@@ -19,7 +19,7 @@ NVA_INSTITUTION_CODE = env("NVA_INSTITUTION_CODE", default="7511.0.0.0")
 NVA_ACCESS_KEY = env("AWS_ACCESS_KEY", default="")
 NVA_SECRET_KEY = env("AWS_SECRET_KEY", default="")
 NVA_ENDPOINT = env("S3_ENDPOINT", default="https://s3-int-1.nina.no")
-NVA_BUCKET = env("NVA_BUCKET", default="nva")
+NVA_BUCKET = env("NVA_BUCKET", default="miljodata-test")
 NVA_PREFIX = env("NVA_PREFIX", default="nva")
 NVA_REGION = env("NVA_REGION", default="us-east-1")
 
@@ -158,6 +158,7 @@ def run(
         raise typer.Exit(code=1)
 
     log.info("Starting NVA data sync")
+    log.info(f"Data will be available at: https://{endpoint_url}/{bucket}/{prefix}")
     credentials = AwsCredentials(
         s3_url_style="path",
         endpoint_url="https://" + endpoint_url,
