@@ -25,7 +25,7 @@ def snp_analysis_to_parquet(file: str) -> None:
                 "\n".join(
                     f.read().replace("\r", "").split("\n\n")[2].split("\n")[2:]
                 ).encode()
-            )
+            ).read()
         )
 
     table.select("* rename (column00 as position, column01 as genlab_id)").query(

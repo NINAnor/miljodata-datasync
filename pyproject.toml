@@ -5,6 +5,7 @@ requires = ["hatchling"]
 [dependency-groups]
 dev = [
   "deptry",
+  "lxml-stubs>=0.5.1",
   "mkdocs>=1.6.1",
   "mkdocs-material>=9.7.1",
   "mkdocs-typer2>=0.1.6",

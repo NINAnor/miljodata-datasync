@@ -6,7 +6,8 @@ from pygeometa.schemas.gbif_eml import GBIF_EMLOutputSchema
 from pygeometa.schemas.iso19139 import ISO19139OutputSchema
 from shapely.geometry import box
 
-from ..settings import env as logger
+from ..libs.helpers import get_anytext
+from ..settings import log
 from .settings import (
     AWS_ENDPOINT_URL,
     CSW_PATH,
@@ -22,29 +23,16 @@ eml = GBIF_EMLOutputSchema()
 iso = ISO19139OutputSchema()
 
 
-def get_anytext(bag):
-    """
-    generate bag of text for free text searches
-    accepts list of words, string of XML, or etree.Element
-    """
-
-    if isinstance(bag, list):  # list of words
-        return " ".join([_f for _f in bag if _f]).strip()
-    else:  # xml
-        if isinstance(bag, bytes) or isinstance(bag, str):
-            # serialize to lxml
-            bag = etree.fromstring(bag, PARSER)  # noqa: S320
-        # get all XML element content
-        return " ".join([value.strip() for value in bag.xpath("//text()")])
-
-
 def eml_to_record(ds, text):
-    metadata = eml.import_(text)
+    metadata: dict = eml.import_(text)
 
     metadata["metadata"]["identifier"] = f"ipt__{ds['id']}"
 
     xml = iso.write(metadata)
-    fts = get_anytext(xml)
+    if isinstance(xml, str):
+        fts = get_anytext(xml)
+    else:
+        raise TypeError("xml instance expected to be of type string")
     idf = metadata["identification"]
     bbox = idf["extents"]["spatial"][0]["bbox"]
 
@@ -111,9 +99,9 @@ def eml_to_record(ds, text):
 
 
 def write_eml_record(rows):
-    logger.info("converting to arrow")
+    log.info("converting to arrow")
     records = pa.Table.from_pylist(rows)  # noqa: F841
-    logger.info("write to S3")
+    log.info("write to S3")
     conn.sql("from records").write_parquet(
         f"s3://{S3_BUCKET}{CSW_PATH}",
         compression="zstd",
