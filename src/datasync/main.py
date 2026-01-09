@@ -4,7 +4,7 @@
 
 import typer
 
-from . import dms, grass, ninagen, nva, pit_registering_salmon, services, ubw
+from . import dms, grass, maps, ninagen, nva, pit_registering_salmon, services, ubw
 
 app = typer.Typer(
     help="Provide subcommands for synchronizing different resources, see subcommands"
@@ -16,6 +16,7 @@ app.add_typer(ninagen.app, name="ninagen")
 app.add_typer(pit_registering_salmon.app, name="pit-registering-salmon")
 app.add_typer(grass.app, name="grass-gis")
 app.add_typer(services.app, name="services")
+app.add_typer(maps.app, name="maps")
 
 if __name__ == "__main__":
     app()
