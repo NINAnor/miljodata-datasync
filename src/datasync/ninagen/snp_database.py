@@ -1,4 +1,5 @@
 import duckdb
+import typer
 from openpyxl.utils.cell import get_column_letter
 from python_calamine import CalamineWorkbook
 
@@ -6,9 +7,13 @@ from ..settings import log
 from .app import app
 
 
-@app.command()
+@app.command(help="Convert SNP excel sheet to parquet")
 def snp_database_normalize(
-    file: str, sheet: str = "Sheet1", start_row: int = 3
+    file: str = typer.Argument(help="path to the file"),
+    sheet: str = typer.Argument(
+        default="Sheet1", help="Name of the Excel Sheet to use"
+    ),
+    start_row: int = typer.Option(default=3, help="Number of lines to skip"),
 ) -> None:
     """
     Convert the excel spreadsheet containing SNP data used by genetists
@@ -29,9 +34,9 @@ def snp_database_normalize(
     fixed_header = []
     for i, v in enumerate(header):
         if not v:
-            fixed_header.append(f"{header[i - 1]}_Alle2")
+            fixed_header.append(f"{header[i - 1]}_Allele2")
         else:
-            fixed_header.append(f"{v}_Alle1" if i > 4 else v)
+            fixed_header.append(f"{v}_Allele1" if i > 4 else v)
 
     table = db.sql(f"""install excel; load excel;
         select *
@@ -76,9 +81,9 @@ def snp_database_normalize(
                 GUID,
                 pop_id,
                 river_id,
-                first(regexp_replace(alle, '_Alle\d', '')) as gene,
-                first(alle_value order by alle) as alle1,
-                last(alle_value order by alle) as alle2
+                first(regexp_replace(alle, '_Allele\d', '')) as gene,
+                first(alle_value order by alle) as allele1,
+                last(alle_value order by alle) as allele2
             group by
                 row_number,
                 fluidigm,
@@ -86,7 +91,7 @@ def snp_database_normalize(
                 GUID,
                 pop_id,
                 river_id,
-                regexp_replace(alle, '_Alle\d', '')
+                regexp_replace(alle, '_Allele\d', '')
         """,
     )
 
@@ -95,23 +100,23 @@ def snp_database_normalize(
         sql_query="""from genes
             select * replace (
                 case
-                    when alle1 = 'T' then 4
-                    when alle1 = 'G' then 3
-                    when alle1 = 'C' then 2
-                    when alle1 = 'A' then 1
-                    when alle1 in ('-', 'N') then 0
-                    else try_cast(alle1 as int)
-                end as alle1,
+                    when allele1 = 'T' then 4
+                    when allele1 = 'G' then 3
+                    when allele1 = 'C' then 2
+                    when allele1 = 'A' then 1
+                    when allele1 in ('-', 'N') then 0
+                    else try_cast(allele1 as int)
+                end as allele1,
                 case
-                    when alle2 = 'T' then 4
-                    when alle2 = 'G' then 3
-                    when alle2 = 'C' then 2
-                    when alle2 = 'A' then 1
-                    when alle2 in ('-', 'N') then 0
-                    else try_cast(alle2 as int)
-                end as alle2
+                    when allele2 = 'T' then 4
+                    when allele2 = 'G' then 3
+                    when allele2 = 'C' then 2
+                    when allele2 = 'A' then 1
+                    when allele2 in ('-', 'N') then 0
+                    else try_cast(allele2 as int)
+                end as allele2
             )
-            where alle1 is not null and alle2 is not null
+            where alle1 is not null and allele2 is not null
             order by row_number
         """,
     )
@@ -128,7 +133,7 @@ def snp_database_normalize(
         """
             pivot fixed_genes
             on gene
-            using first(alle1) as Alle1, first(alle2) as Alle2
+            using first(allele1) as Allele1, first(allele2) as Allele2
             group by row_number, fluidigm, fish_id, GUID, pop_id, river_id
             order by row_number
         """,
