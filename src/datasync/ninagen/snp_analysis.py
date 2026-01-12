@@ -2,12 +2,12 @@ import io
 import pathlib
 
 import duckdb
+import typer
 
-from .app import app
 
-
-@app.command()
-def snp_analysis_to_parquet(file: str) -> None:
+def snp_analysis_to_parquet(
+    file: str = typer.Argument(help="Path to the csv file"),
+) -> None:
     """
     Convert the csv to a parquet file
 

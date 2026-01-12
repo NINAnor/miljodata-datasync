@@ -4,7 +4,6 @@ from openpyxl.utils.cell import column_index_from_string, get_column_letter
 from python_calamine import CalamineWorkbook
 
 from ..settings import log
-from .app import app
 
 FIELDS = [
     "fluidigm",
@@ -15,7 +14,6 @@ FIELDS = [
 ]
 
 
-@app.command(help="Convert SNP excel sheet to parquet")
 def snp_database_normalize(
     file: str = typer.Argument(help="path to the file"),
     sheet: str = typer.Argument(
