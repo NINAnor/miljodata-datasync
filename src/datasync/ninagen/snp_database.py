@@ -1,10 +1,18 @@
 import duckdb
 import typer
-from openpyxl.utils.cell import get_column_letter
+from openpyxl.utils.cell import column_index_from_string, get_column_letter
 from python_calamine import CalamineWorkbook
 
 from ..settings import log
 from .app import app
+
+FIELDS = [
+    "fluidigm",
+    "fish_id",
+    "Guid",
+    "pop_id",
+    "river_id",
+]
 
 
 @app.command(help="Convert SNP excel sheet to parquet")
@@ -13,7 +21,13 @@ def snp_database_normalize(
     sheet: str = typer.Argument(
         default="Sheet1", help="Name of the Excel Sheet to use"
     ),
-    start_row: int = typer.Option(default=3, help="Number of lines to skip"),
+    header_row: int = typer.Option(
+        default=1,
+        help="XLSX Row number that contains the header",
+    ),
+    allele_start_column: str = typer.Option(
+        default="F", help="XLSX column that contains the first allele"
+    ),
 ) -> None:
     """
     Convert the excel spreadsheet containing SNP data used by genetists
@@ -30,25 +44,39 @@ def snp_database_normalize(
 
     # The header has some columns with empty names, as they depend on the previous
     wb = CalamineWorkbook.from_path(file)
-    header = wb.get_sheet_by_name(sheet).to_python(skip_empty_area=False)[0]
+    header = wb.get_sheet_by_name(sheet).to_python(skip_empty_area=False)[
+        header_row - 1
+    ]
+    log.debug(header)
     fixed_header = []
+    allele_first_column_index = column_index_from_string(allele_start_column)
+    skip = 1
     for i, v in enumerate(header):
         if not v:
-            fixed_header.append(f"{header[i - 1]}_Allele2")
+            if header[i - 1] and not header[i - 1].startswith("skip"):
+                # Handle empty columns
+                fixed_header.append(f"{header[i - 1]}_Allele2")
+            else:
+                fixed_header.append(f"skip_{skip}")
+                skip += 1
         else:
-            fixed_header.append(f"{v}_Allele1" if i > 4 else v)
+            fixed_header.append(
+                f"{v}_Allele1" if i >= allele_first_column_index - 1 else v
+            )
+
+    log.debug(fixed_header)
 
     table = db.sql(f"""install excel; load excel;
         select *
-        from read_xlsx('{file}', range = 'A{start_row}:{get_column_letter(len(fixed_header))}', header=false, all_varchar = true)
+        from read_xlsx('{file}', range = 'A{header_row + 1}:{get_column_letter(len(fixed_header))}', header=false, all_varchar = true)
         """).to_arrow_table()  # noqa: E501, S608
 
     rel = db.from_arrow(table.rename_columns(fixed_header))
     row_numbers = rel.select("""row_number() OVER () as row_number,
                      * rename ("Fluidigm#" as fluidigm,
-                        "NINA Genlab id" as fish_id,
-                        "Vdr#" as river_id,
-                        "Pop id" as pop_id
+                        "GenlabID" as fish_id,
+                        "Vassdrags#" as river_id,
+                        "PopID" as pop_id
                      )
                      """)
 
@@ -60,15 +88,15 @@ def snp_database_normalize(
                 'row_number',
                 'fluidigm',
                 'fish_id',
-                'GUID',
+                'Guid',
                 'pop_id',
                 'river_id'
             ))
             into
-                name alle
-                value alle_value
+                name allele
+                value allele_value
         """,
-    )
+    ).filter("allele not like 'skip_%'")
 
     grouped = unpivoted.query(
         virtual_table_name="alleles",
@@ -78,20 +106,20 @@ def snp_database_normalize(
                 row_number,
                 fluidigm,
                 fish_id,
-                GUID,
+                Guid,
                 pop_id,
                 river_id,
-                first(regexp_replace(alle, '_Allele\d', '')) as gene,
-                first(alle_value order by alle) as allele1,
-                last(alle_value order by alle) as allele2
+                first(regexp_replace(allele, '_Allele\d', '')) as gene,
+                first(allele_value order by allele) as allele1,
+                last(allele_value order by allele) as allele2
             group by
                 row_number,
                 fluidigm,
                 fish_id,
-                GUID,
+                Guid,
                 pop_id,
                 river_id,
-                regexp_replace(alle, '_Allele\d', '')
+                regexp_replace(allele, '_Allele\d', '')
         """,
     )
 
@@ -116,12 +144,12 @@ def snp_database_normalize(
                     else try_cast(allele2 as int)
                 end as allele2
             )
-            where alle1 is not null and allele2 is not null
+            where allele1 is not null and allele2 is not null
             order by row_number
         """,
     )
 
-    fixed.to_parquet("genes.parquet")
+    fixed.to_parquet("genes.parquet", compression="zstd")
     # NOTE: it's necessary to materialize first,
     # duckdb cannot unpivot and pivot in the same query
     # NOTE: all the operations are lazy, so everything up to this point
@@ -134,9 +162,25 @@ def snp_database_normalize(
             pivot fixed_genes
             on gene
             using first(allele1) as Allele1, first(allele2) as Allele2
-            group by row_number, fluidigm, fish_id, GUID, pop_id, river_id
+            group by row_number, fluidigm, fish_id, Guid, pop_id, river_id
             order by row_number
         """,
-    ).to_parquet("pivoted.parquet")
+    ).to_parquet("pivoted.parquet", compression="zstd")
 
-    # TODO: use original columns order
+    # db.table("pivoted_genes").show()
+
+    # reordered_columns = FIELDS + list(
+    #     filter(
+    #         lambda x: not x.startswith("skip_"),
+    #         fixed_header[allele_first_column_index - 1 :],
+    #     )
+    # )
+
+    # log.debug(reordered_columns)
+
+    # reordered = db.table("pivoted_genes").select(
+    #     *[duckdb.ColumnExpression(v) for v in reordered_columns]
+    # )
+
+    # # log.debug(reordered.sql_query())
+    # db.table("pivoted_genes").to_parquet("pivoted.parquet")
