@@ -10,4 +10,3 @@ hide:
 ::: mkdocs-typer2
     :module: datasync.main
     :name: datasync
-    :pretty: true

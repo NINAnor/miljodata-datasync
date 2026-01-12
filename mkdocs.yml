@@ -7,8 +7,7 @@ theme:
 
 plugins:
   - search
-  - mkdocs-typer2:
-      pretty: true
+  - mkdocs-typer2
 
 watch:
   - docs
