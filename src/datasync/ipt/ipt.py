@@ -2,7 +2,7 @@ import httpx
 import xmltodict
 from bs4 import BeautifulSoup
 
-from .settings import IPT_URL
+from .settings import IPT_URL, logging
 
 
 def get_datasets():
@@ -14,11 +14,18 @@ def get_datasets():
             for k, v in xmltodict.parse(item.prettify())["item"].items()
         }
         resource_id = content["link"].split("=")[1]
-        yield {
-            **content,
-            "id": resource_id,
-            "version": content["guid"]["#text"].split("/")[1].replace("v", ""),
-        }
+        if content.get("guid"):
+            yield {
+                **content,
+                "id": resource_id,
+                "version": content["guid"]["#text"].split("/")[1].replace("v", ""),
+            }
+        else:
+            logging.warning(
+                "Content does not have a guid, skipping",
+                content=content,
+                resource_id=resource_id,
+            )
 
 
 def get_dataset_metadata(resource_id: str):
