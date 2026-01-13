@@ -6,24 +6,20 @@ from .dms import create_dms_dataset
 from .geoapi import to_pygeoapi_resource, write_pygeoapi_resources
 from .ipt import get_dataset_metadata, get_datasets
 from .parquet import version_to_parquet
-from .settings import (
-    duckdb_install_extensions,
-    duckdb_load_extensions,
-    duckdb_load_s3_credentials,
+
+app = typer.Typer(
+    help="Provide commands to deal with IPT", pretty_exceptions_enable=False
 )
 
-app = typer.Typer()
 
-
-@app.command()
-def main(
+@app.command(
+    help="Convert IPT resources to geoparquet, register them in the DMS, publish metadata and configurations"  # noqa: E501
+)
+def run(
     skip_data: bool = typer.Option(
         default=False, help="Ignore data conversion step, perform only metadata"
     ),
 ):
-    duckdb_install_extensions()
-    duckdb_load_extensions()
-    duckdb_load_s3_credentials()
     eml_records = []
     geoapi_records = []
     for resource in get_datasets():
