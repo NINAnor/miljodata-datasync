@@ -100,6 +100,7 @@ def eml_to_record(ds, text):
         "publisher": "Norsk institutt for naturforskning (NINA)",
         "contributor": "; ".join(set(contribs)),
         "links": json.dumps(links),
+        "mcf": json.dumps(metadata),
     }
 
 
