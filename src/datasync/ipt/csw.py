@@ -49,13 +49,13 @@ def eml_to_record(ds, text):
         links = [
             {
                 "name": "Parquet",
-                "description": "The resource as (geo)parquet file",
+                "description": "GeoParquet file",
                 "protocol": "FILE:GEO",
                 "url": f"{AWS_ENDPOINT_URL}/{S3_BUCKET}{RESOURCES_PREFIX}{ds['id']}.parquet",  # noqa: E501
             },
             {
                 "name": "DWCA",
-                "description": "The resource as Darwin Core Archive",
+                "description": "Darwin Core Archive",
                 "protocol": "file",
                 "url": f"{IPT_URL}/archive.do?r={ds['id']}",  # noqa: E501
             },
@@ -65,13 +65,15 @@ def eml_to_record(ds, text):
             links.append(
                 {
                     "name": "OGC API Feature",
-                    "description": "OGC REST API to the resource",
+                    "description": "OGC REST API",
                     "protocol": "OGCFeat",
                     "url": f"{GEOAPI_PUBLISH_URL}/collections/ipt__{ds['id']}/items?f=json",  # noqa: E501
                 },
             )
     else:
         links = []
+
+    lang = metadata["metadata"].get("language", "en_US")
 
     return {
         "identifier": metadata["metadata"]["identifier"],
@@ -80,6 +82,7 @@ def eml_to_record(ds, text):
         "mdsource": "local",
         "insert_date": idf["dates"]["publication"],
         "title": ds["title"],
+        "language": lang,
         "date_modified": idf["dates"]["publication"],
         "type": "dataset",
         "format": None,
@@ -91,7 +94,9 @@ def eml_to_record(ds, text):
         "anytext": fts,
         "abstract": metadata["identification"]["abstract"],
         "date": idf["dates"]["publication"],
-        "creator": "Norsk institutt for naturforskning (NINA)",
+        "creator": "Norsk institutt for naturforskning (NINA)"
+        if lang == "en-US"
+        else "Norwegian Institute for Nature Research (NINA)",
         "publisher": "Norsk institutt for naturforskning (NINA)",
         "contributor": "; ".join(set(contribs)),
         "links": json.dumps(links),

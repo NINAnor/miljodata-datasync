@@ -16,27 +16,29 @@ app = typer.Typer()
 
 
 @app.command()
-def main():
+def main(
+    skip_data: bool = typer.Option(
+        default=False, help="Ignore data conversion step, perform only metadata"
+    ),
+):
     duckdb_install_extensions()
     duckdb_load_extensions()
     duckdb_load_s3_credentials()
     eml_records = []
     geoapi_records = []
     for resource in get_datasets():
-        if resource.get("ipt_dwca") and resource["version"]:
-            parquet_url = version_to_parquet(resource["id"], resource["version"])
-        else:
-            log.info(f"skipping {resource['id']} no dwca available")
-            parquet_url = None
+        if not skip_data:
+            if resource.get("ipt_dwca") and resource["version"]:
+                parquet_url = version_to_parquet(resource["id"], resource["version"])
+            else:
+                log.info(f"skipping {resource['id']} no dwca available")
+                parquet_url = None
 
-        create_dms_dataset(resource, parquet_url)
+            create_dms_dataset(resource, parquet_url)
+
         text = get_dataset_metadata(resource_id=resource["id"])
         eml_records.append(eml_to_record(resource, text))
         geoapi_records.append(to_pygeoapi_resource(resource, text))
 
     write_eml_record(eml_records)
     write_pygeoapi_resources(geoapi_records)
-
-
-if __name__ == "__main__":
-    app()
