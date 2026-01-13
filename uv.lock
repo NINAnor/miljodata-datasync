@@ -446,7 +446,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.13.3" },
     { name = "django-environ" },
     { name = "dlt", extras = ["duckdb", "filesystem", "parquet", "s3"], specifier = ">=1.17.1" },
-    { name = "duckdb", specifier = ">=1.4.2" },
+    { name = "duckdb", specifier = ">=1.4.3" },
     { name = "fsspec", specifier = ">=2025.3.2" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
