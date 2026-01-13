@@ -73,7 +73,7 @@ def eml_to_record(ds, text):
     else:
         links = []
 
-    lang = metadata["metadata"].get("language", "en_US")
+    lang = metadata["metadata"].get("language", "en")
 
     return {
         "identifier": metadata["metadata"]["identifier"],
@@ -95,7 +95,7 @@ def eml_to_record(ds, text):
         "abstract": metadata["identification"]["abstract"],
         "date": idf["dates"]["publication"],
         "creator": "Norsk institutt for naturforskning (NINA)"
-        if lang == "en-US"
+        if lang == "en"
         else "Norwegian Institute for Nature Research (NINA)",
         "publisher": "Norsk institutt for naturforskning (NINA)",
         "contributor": "; ".join(set(contribs)),
