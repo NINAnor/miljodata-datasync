@@ -16,6 +16,7 @@ from .settings import (
     RESOURCES_PREFIX,
     S3_BUCKET,
     conn,
+    s3,
 )
 
 PARSER = etree.XMLParser(resolve_entities=False)
@@ -29,6 +30,12 @@ def eml_to_record(ds, text):
     metadata["metadata"]["identifier"] = f"ipt__{ds['id']}"
 
     xml = iso.write(metadata)
+
+    with s3.open(
+        f"{S3_BUCKET}{RESOURCES_PREFIX}{ds['id']}.xml", mode="w"
+    ) as metadata_file:
+        metadata_file.write(xml)
+
     if isinstance(xml, str):
         fts = get_anytext(xml)
     else:

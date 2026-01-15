@@ -3,6 +3,7 @@ import pathlib
 
 import duckdb
 import fsspec
+import s3fs
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..settings import env
@@ -31,6 +32,11 @@ templates = Environment(
 )
 
 fs = fsspec.filesystem("file")
+s3 = s3fs.S3FileSystem(
+    endpoint_url=AWS_ENDPOINT_URL,
+    key=AWS_ACCESS_KEY,
+    secret=AWS_SECRET_KEY,
+)
 
 conn = duckdb.connect(CONNECTION)
 
