@@ -7,7 +7,9 @@ theme:
 
 plugins:
   - search
-  - mkdocs-typer2
+  - mkdocs-typer2:
+      pretty: true
+      engine: native
 
 watch:
   - docs
