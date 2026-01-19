@@ -1,12 +1,57 @@
-import pyarrow as pa
+from urllib.parse import quote
+
+import httpx
 from lxml import etree
 from pygeometa.schemas.gbif_eml import GBIF_EMLOutputSchema
 
-from ..settings import log as logger
-from .settings import AWS_ENDPOINT_URL, GEOAPI_PATH, RESOURCES_PREFIX, S3_BUCKET, conn
+from ..settings import log
+from .settings import (
+    AWS_ENDPOINT_URL,
+    GEOAPI_PUBLISH_URL,
+    RESOURCES_PREFIX,
+    S3_BUCKET,
+)
 
 PARSER = etree.XMLParser(resolve_entities=False)
 eml = GBIF_EMLOutputSchema()
+
+
+def publish_pygeoapi_resource(base_url, data):
+    log.debug("publishing configuration", data=data)
+    try:
+        response = httpx.post(
+            f"{base_url}/admin/config/resources",
+            json={
+                data["id"]: data,
+            },
+        ).raise_for_status()
+        log.info(
+            "created collection", response=response.text, status=response.status_code
+        )
+    except httpx.HTTPStatusError as e:
+        log.debug(
+            "failed creation, expect resource exists",
+            response=e.response.text,
+            status=e.response.status_code,
+            request=e.request.url,
+        )
+        try:
+            response = httpx.put(
+                f"{base_url}/admin/config/resources/{quote(data['id'], safe=[])}",
+                json=data,
+            ).raise_for_status()
+            log.info(
+                "updated collection",
+                response=response.text,
+                status=response.status_code,
+            )
+        except httpx.HTTPStatusError as e:
+            log.warn(
+                "checking admin config",
+                response=e.response.text,
+                status=e.response.status_code,
+                request=e.request.url,
+            )
 
 
 def to_pygeoapi_resource(ds, eml_text):
@@ -24,8 +69,10 @@ def to_pygeoapi_resource(ds, eml_text):
     for _k, v in idf["keywords"].items():
         keywords += v["keywords"]
 
-    return {
-        "id": f"ipt__{ds['id']}",
+    identifier = f"ipt__{ds['id']}"
+
+    config = {
+        "id": identifier,
         "type": "collection",
         "visibility": "default",
         "title": ds["title"],
@@ -53,11 +100,4 @@ def to_pygeoapi_resource(ds, eml_text):
         ],
     }
 
-
-def write_pygeoapi_resources(rows):
-    logger.info("converting to arrow")
-    records = pa.Table.from_pylist(rows)  # noqa: F841
-    logger.info("write to S3")
-    conn.sql(f"""
-        COPY records to 's3://{S3_BUCKET}{GEOAPI_PATH}' (FORMAT json, ARRAY true)
-    """)  # noqa: E501
+    publish_pygeoapi_resource(GEOAPI_PUBLISH_URL, config)

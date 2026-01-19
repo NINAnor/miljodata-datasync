@@ -1,9 +1,9 @@
 import typer
 
 from ..settings import log
-from .csw import eml_to_record, write_eml_record
+from .csw import eml_write_record
 from .dms import create_dms_dataset
-from .geoapi import to_pygeoapi_resource, write_pygeoapi_resources
+from .geoapi import to_pygeoapi_resource
 from .ipt import get_dataset_metadata, get_datasets
 from .parquet import version_to_parquet
 
@@ -19,9 +19,10 @@ def run(
     skip_data: bool = typer.Option(
         default=False, help="Ignore data conversion step, perform only metadata"
     ),
+    skip_dms: bool = typer.Option(default=False, help="Skip publishing to DMS"),
+    limit: int | None = typer.Option(help="Only import a certain amount of records"),
 ):
-    eml_records = []
-    geoapi_records = []
+    index = 1
     for resource in get_datasets():
         if not skip_data:
             if resource.get("ipt_dwca") and resource["version"]:
@@ -30,11 +31,12 @@ def run(
                 log.info(f"skipping {resource['id']} no dwca available")
                 parquet_url = None
 
-            create_dms_dataset(resource, parquet_url)
+            if not skip_dms:
+                create_dms_dataset(resource, parquet_url)
 
         text = get_dataset_metadata(resource_id=resource["id"])
-        eml_records.append(eml_to_record(resource, text))
-        geoapi_records.append(to_pygeoapi_resource(resource, text))
-
-    write_eml_record(eml_records)
-    write_pygeoapi_resources(geoapi_records)
+        eml_write_record(resource, text)
+        to_pygeoapi_resource(resource, text)
+        index += 1
+        if limit and limit < index:
+            break
