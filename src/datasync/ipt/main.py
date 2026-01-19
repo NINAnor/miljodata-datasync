@@ -20,6 +20,8 @@ def run(
         default=False, help="Ignore data conversion step, perform only metadata"
     ),
     skip_dms: bool = typer.Option(default=False, help="Skip publishing to DMS"),
+    skip_csw: bool = typer.Option(default=False, help="Skip publishing to CSW"),
+    skip_geoapi: bool = typer.Option(default=False, help="Skip publishing to pygeoapi"),
     limit: int | None = typer.Option(help="Only import a certain amount of records"),
 ):
     index = 1
@@ -35,8 +37,9 @@ def run(
                 create_dms_dataset(resource, parquet_url)
 
         text = get_dataset_metadata(resource_id=resource["id"])
-        eml_write_record(resource, text)
-        to_pygeoapi_resource(resource, text)
+        eml_write_record(resource, text, skip=skip_csw)
+        if not skip_geoapi:
+            to_pygeoapi_resource(resource, text)
         index += 1
         if limit and limit < index:
             break

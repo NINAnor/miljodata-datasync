@@ -54,7 +54,7 @@ def publish_csw_record(base_url, data, identifier):
         )
 
 
-def eml_write_record(ds, text):
+def eml_write_record(ds, text, skip):
     identifier = f"ipt__{ds['id']}"
     metadata: dict = eml.import_(text)
 
@@ -82,4 +82,5 @@ def eml_write_record(ds, text):
     ) as metadata_file:
         metadata_file.write(xml)
 
-    publish_csw_record(OGC_RECORDS_PUBLISH_URL, xml, identifier=identifier)
+    if not skip:
+        publish_csw_record(OGC_RECORDS_PUBLISH_URL, xml, identifier=identifier)
