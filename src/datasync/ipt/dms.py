@@ -2,7 +2,7 @@ from ..libs.dms import upsert_dms_element
 from .settings import DMS_PROJECT_ID
 
 
-def create_dms_dataset(ds, parquet_url):
+def create_dms_dataset(ds, parquet_url, xml_url):
     ds_id = "IPT__" + ds["id"]
 
     # Upsert dataset
@@ -19,6 +19,25 @@ def create_dms_dataset(ds, parquet_url):
     }
 
     upsert_dms_element("datasets", ds_id, dataset_data, dataset_update_data)
+
+    if xml_url:
+        data = {
+            "id": ds_id + "_xml",
+            "dataset_id": ds_id,
+            "title": ds["title"] + " - ISO 19139",
+            "uri": xml_url,
+            "access_type": "public",
+            "role": "metadata",
+        }
+        upsert_dms_element(
+            "resource",
+            ds_id + "_xml",
+            data,
+            {
+                "title": ds["title"] + " - ISO 19139",
+                "uri": xml_url,
+            },
+        )
 
     if parquet_url:
         # Upsert tabular resource

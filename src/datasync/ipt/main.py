@@ -33,11 +33,12 @@ def run(
                 log.info(f"skipping {resource['id']} no dwca available")
                 parquet_url = None
 
-            if not skip_dms:
-                create_dms_dataset(resource, parquet_url)
-
         text = get_dataset_metadata(resource_id=resource["id"])
-        eml_write_record(resource, text, skip=skip_csw)
+        xml_url = eml_write_record(resource, text, skip=skip_csw)
+
+        if parquet_url and not skip_dms:
+            create_dms_dataset(resource, parquet_url, xml_url)
+
         if not skip_geoapi:
             to_pygeoapi_resource(resource, text)
         index += 1

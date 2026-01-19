@@ -84,3 +84,5 @@ def eml_write_record(ds, text, skip):
 
     if not skip:
         publish_csw_record(OGC_RECORDS_PUBLISH_URL, xml, identifier=identifier)
+
+    return f"{AWS_ENDPOINT_URL}/{S3_BUCKET}{RESOURCES_PREFIX}{ds['id']}.xml"
