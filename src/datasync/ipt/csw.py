@@ -7,7 +7,6 @@ from ..settings import log
 from .settings import (
     AWS_ENDPOINT_URL,
     GEOAPI_PUBLISH_URL,
-    METADATA_PREFIX,
     OGC_RECORDS_PUBLISH_URL,
     RESOURCES_PREFIX,
     S3_BUCKET,
@@ -64,21 +63,43 @@ def eml_write_record(ds, text, skip):
         "name": "GeoParquet",
         "description": "GeoParquet",
         "type": "FILE:GEO",
+        "format": "Parquet",
         "url": f"{AWS_ENDPOINT_URL}/{S3_BUCKET}{RESOURCES_PREFIX}{ds['id']}.parquet",  # noqa: E501
     }
+
+    if "author" in metadata["pointOfContact"]:
+        metadata["contact"]["pointOfContact"] = metadata["contact"][
+            "pointOfContact"
+        ] | {
+            "organization": "Norsk institutt for naturforskning",
+            "url": "https://www.nina.no",
+            "country": "Norway",
+            "email": "firmapost@nina.no",
+        }
+
+    if "author" in metadata["contact"]:
+        metadata["contact"]["author"] = metadata["contact"]["author"] | {
+            "organization": "Norsk institutt for naturforskning",
+            "url": "https://www.nina.no",
+            "country": "Norway",
+            "email": "firmapost@nina.no",
+        }
 
     if GEOAPI_PUBLISH_URL:
         metadata["distribution"]["pygeoapi"] = {
             "name": "OGC API Feature",
             "description": "OGC REST API",
             "type": "OGCFeat",
+            "format": "GeoJSON",
             "url": f"{GEOAPI_PUBLISH_URL}/collections/{identifier}/items?f=json",  # noqa: E501
         }
+
+    log.debug("using mcf", mcf=metadata)
 
     xml = iso.write(metadata)
 
     with s3.open(
-        f"{S3_BUCKET}{METADATA_PREFIX}{ds['id']}.xml", mode="w"
+        f"{S3_BUCKET}{RESOURCES_PREFIX}{ds['id']}.xml", mode="w"
     ) as metadata_file:
         metadata_file.write(xml)
 
