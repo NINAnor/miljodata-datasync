@@ -22,7 +22,9 @@ def run(
     skip_dms: bool = typer.Option(default=False, help="Skip publishing to DMS"),
     skip_csw: bool = typer.Option(default=False, help="Skip publishing to CSW"),
     skip_geoapi: bool = typer.Option(default=False, help="Skip publishing to pygeoapi"),
-    limit: int | None = typer.Option(help="Only import a certain amount of records"),
+    limit: int | None = typer.Option(
+        default=None, help="Only import a certain amount of records"
+    ),
 ):
     index = 1
     for resource in get_datasets():
