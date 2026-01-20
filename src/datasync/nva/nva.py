@@ -7,7 +7,7 @@ from dlt.sources.credentials import AwsCredentials
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
-from .settings import (
+from ..settings import (
     env,
     log,
 )
