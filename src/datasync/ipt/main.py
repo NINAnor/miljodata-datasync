@@ -26,6 +26,8 @@ def run(
 ):
     index = 1
     for resource in get_datasets():
+        log.debug("processing resource", resource=resource)
+        parquet_url = None
         if not skip_data:
             if resource.get("ipt_dwca") and resource["version"]:
                 parquet_url = version_to_parquet(resource["id"], resource["version"])
@@ -35,6 +37,7 @@ def run(
 
         text = get_dataset_metadata(resource_id=resource["id"])
         xml_url = eml_write_record(resource, text, skip=skip_csw)
+        log.debug("xml generated", url=xml_url)
 
         if parquet_url and not skip_dms:
             create_dms_dataset(resource, parquet_url, xml_url)
