@@ -20,25 +20,6 @@ def create_dms_dataset(ds, parquet_url, xml_url):
 
     upsert_dms_element("datasets", ds_id, dataset_data, dataset_update_data)
 
-    if xml_url:
-        data = {
-            "id": ds_id + "_xml",
-            "dataset_id": ds_id,
-            "title": ds["title"] + " - ISO 19139",
-            "uri": xml_url,
-            "access_type": "public",
-            "role": "metadata",
-        }
-        upsert_dms_element(
-            "resource",
-            ds_id + "_xml",
-            data,
-            {
-                "title": ds["title"] + " - ISO 19139",
-                "uri": xml_url,
-            },
-        )
-
     if parquet_url:
         # Upsert tabular resource
         tabular_resource_data = {
@@ -48,10 +29,12 @@ def create_dms_dataset(ds, parquet_url, xml_url):
             "uri": parquet_url,
             "access_type": "public",
             "role": "data",
+            "metadata_url": xml_url,
         }
         tabular_resource_update_data = {
             "title": ds["title"] + " Parquet",
             "uri": parquet_url,
+            "metadata_url": xml_url,
         }
 
         upsert_dms_element(
@@ -69,10 +52,12 @@ def create_dms_dataset(ds, parquet_url, xml_url):
             "uri": ds["ipt_dwca"],
             "access_type": "public",
             "role": "data",
+            "metadata_url": xml_url,
         }
         resource_update_data = {
             "title": ds["title"] + " DWCA",
             "uri": ds["ipt_dwca"],
+            "metadata_url": xml_url,
         }
 
         upsert_dms_element(

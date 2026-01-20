@@ -8,6 +8,8 @@ from ..settings import log
 from .settings import (
     AWS_ENDPOINT_URL,
     GEOAPI_PUBLISH_URL,
+    PUBLISH_PASSWORD,
+    PUBLISH_USER,
     RESOURCES_PREFIX,
     S3_BUCKET,
 )
@@ -18,12 +20,14 @@ eml = GBIF_EMLOutputSchema()
 
 def publish_pygeoapi_resource(base_url, data):
     log.debug("publishing configuration", data=data)
+    auth = httpx.BasicAuth(username=PUBLISH_USER, password=PUBLISH_PASSWORD)
     try:
         response = httpx.post(
             f"{base_url}/admin/config/resources",
             json={
                 data["id"]: data,
             },
+            auth=auth,
         ).raise_for_status()
         log.info(
             "created collection", response=response.text, status=response.status_code
@@ -39,6 +43,7 @@ def publish_pygeoapi_resource(base_url, data):
             response = httpx.put(
                 f"{base_url}/admin/config/resources/{quote(data['id'], safe=[])}",
                 json=data,
+                auth=auth,
             ).raise_for_status()
             log.info(
                 "updated collection",
