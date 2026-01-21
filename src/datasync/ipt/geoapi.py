@@ -1,6 +1,9 @@
-from urllib.parse import quote
+from copy import deepcopy
+from time import sleep
 
+import backoff
 import httpx
+from deepdiff import DeepDiff
 from lxml import etree
 from pygeometa.schemas.gbif_eml import GBIF_EMLOutputSchema
 
@@ -18,52 +21,109 @@ PARSER = etree.XMLParser(resolve_entities=False)
 eml = GBIF_EMLOutputSchema()
 
 
+class NotFoundError(httpx.HTTPStatusError):
+    pass
+
+
+@backoff.on_exception(
+    backoff.expo,
+    (httpx.ConnectError, httpx.HTTPStatusError),
+    max_tries=5,
+    jitter=backoff.full_jitter,
+)
+def check_url_exists(url, auth, log) -> httpx.Response:
+    response = httpx.get(
+        url,
+        auth=auth,
+    )
+    if response.status_code // 100 == 4:
+        raise NotFoundError(
+            "Resource not found", request=response.request, response=response
+        )
+
+    response.raise_for_status()
+
+    log.debug("found", response=response.text, status=response.status_code)
+    return response
+
+
+@backoff.on_exception(
+    backoff.expo,
+    (httpx.ConnectError, httpx.HTTPStatusError),
+    max_tries=10,
+    jitter=backoff.full_jitter,
+)
+def req(*args, log, **kwargs):
+    response = httpx.request(*args, **kwargs)
+
+    if response.status_code // 100 == 5:
+        raise httpx.HTTPStatusError(
+            "response over 500", request=response.request, response=response
+        )
+
+    return response
+
+
 def publish_pygeoapi_resource(base_url, data):
     log.debug("publishing configuration", data=data)
     auth = httpx.BasicAuth(username=PUBLISH_USER, password=PUBLISH_PASSWORD)
+
     try:
-        response = httpx.post(
-            f"{base_url}/admin/config/resources",
-            json={
-                data["id"]: data,
-            },
+        resource = check_url_exists(
+            f"{base_url}/admin/config/resources/{data['id']}",
+            log=log,
             auth=auth,
-        ).raise_for_status()
-        log.info(
-            "created collection", response=response.text, status=response.status_code
         )
-    except httpx.HTTPStatusError as e:
-        log.debug(
-            "failed creation, expect resource exists",
-            response=e.response.text,
-            status=e.response.status_code,
-            request=e.request.url,
-        )
-        try:
-            response = httpx.put(
-                f"{base_url}/admin/config/resources/{quote(data['id'], safe=[])}",
+        old_data = resource.json()
+
+        diff = DeepDiff(old_data, data, ignore_order=True)
+
+        log.debug("compared", diff=diff)
+
+        if diff:
+            response = req(
+                method="put",
+                url=f"{base_url}/admin/config/resources/{data['id']}",
                 json=data,
                 auth=auth,
-            ).raise_for_status()
+                log=log,
+            )
             log.info(
                 "updated collection",
                 response=response.text,
                 status=response.status_code,
             )
-        except httpx.HTTPStatusError as e:
-            log.warn(
-                "checking admin config",
-                response=e.response.text,
-                status=e.response.status_code,
-                request=e.request.url,
-            )
+        else:
+            log.info("skip, already updated")
+    except NotFoundError:
+        response = req(
+            method="post",
+            url=f"{base_url}/admin/config/resources",
+            json={
+                data["id"]: data,
+            },
+            auth=auth,
+            log=log,
+        )
+        log.info(
+            "created collection", response=response.text, status=response.status_code
+        )
+
+    sleep(5)
+
+    check_url_exists(
+        f"{base_url}/admin/config/resources/{data['id']}",
+        auth=auth,
+        log=log,
+    )
 
 
 def to_pygeoapi_resource(ds, eml_text):
     metadata = eml.import_(eml_text)
 
     idf = metadata["identification"]
-    spatial = idf["extents"]["spatial"][0]
+    spatial = deepcopy(idf["extents"]["spatial"][0])
+    spatial["crs"] = str(spatial["crs"])
 
     contribs = []
     for role, contact in metadata["contact"].items():

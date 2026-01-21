@@ -25,10 +25,15 @@ def run(
     limit: int | None = typer.Option(
         default=None, help="Only import a certain amount of records"
     ),
+    search: str | None = typer.Option(
+        default=None, help="execute only on resources which contains that string"
+    ),
 ):
     index = 1
     for resource in get_datasets():
-        log.debug("processing resource", resource=resource)
+        if search and search not in resource["id"]:
+            continue
+        log.info("processing resource", resource=resource)
         parquet_url = None
         if not skip_data:
             if resource.get("ipt_dwca") and resource["version"]:

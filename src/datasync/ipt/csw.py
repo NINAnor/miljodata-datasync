@@ -7,6 +7,7 @@ from ..settings import log
 from .settings import (
     AWS_ENDPOINT_URL,
     GEOAPI_PUBLISH_URL,
+    IPT_URL,
     OGC_RECORDS_PUBLISH_URL,
     RESOURCES_PREFIX,
     S3_BUCKET,
@@ -65,6 +66,15 @@ def eml_write_record(ds, text, skip):
         "type": "FILE:GEO",
         "format": "Parquet",
         "url": f"{AWS_ENDPOINT_URL}/{S3_BUCKET}{RESOURCES_PREFIX}{ds['id']}.parquet",  # noqa: E501
+    }
+
+    metadata["distribution"]["file"] = {
+        "name": "DarwinCore Archive",
+        "description": "DarwinCore archive",
+        "type": "WWW:LINK",
+        "function": "information",
+        "format": "Parquet",
+        "url": f"{IPT_URL}/archive.do?r={ds['id']}",  # noqa: E501
     }
 
     # make sure that point of contact has some basic info required by GeoNorge

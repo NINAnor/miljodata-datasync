@@ -40,7 +40,8 @@ dependencies = [
   "httpx>=0.28.1",
   "setuptools>=65.5.0",
   "backoff>=2.1.0",
-  "pyyaml>=6.0.3"
+  "pyyaml>=6.0.3",
+  "deepdiff>=8.6.1"
 ]
 description = ""
 license = "GPL-3.0+"
