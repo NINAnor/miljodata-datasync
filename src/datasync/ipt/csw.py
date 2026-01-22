@@ -1,8 +1,9 @@
-import httpx
 from lxml import etree
 from pygeometa.schemas.gbif_eml import GBIF_EMLOutputSchema
 from pygeometa.schemas.iso19139 import ISO19139OutputSchema
+from xmldiff.main import diff_texts
 
+from ..libs.helpers import NotFoundError, backoff_request
 from ..settings import log
 from .settings import (
     AWS_ENDPOINT_URL,
@@ -21,36 +22,35 @@ iso = ISO19139OutputSchema()
 
 def publish_csw_record(base_url, data, identifier):
     # see: https://docs.pycsw.org/en/latest/transactions.html#id2
-    try:
-        response = httpx.delete(
-            f"{base_url}/{identifier}",
-            headers={"Content-Type": "application/xml"},
-        ).raise_for_status()
-        log.info(
-            "removed collection",
-            response=response.text,
-            status=response.status_code,
-        )
-    except httpx.HTTPStatusError as e:
-        log.debug(
-            "failed deletion",
-            response=e.response.text,
-            status=e.response.status_code,
-        )
 
     try:
-        response = httpx.post(
-            base_url,
+        response = backoff_request(
+            method="get",
+            url=f"{base_url}/{identifier}?f=xml",
+        )
+        diff = diff_texts(data, response.text)
+        log.debug("xml diff", diff=diff)
+
+        if diff:
+            # PUT doesn't work: https://github.com/geopython/pycsw/issues/1194
+            backoff_request(
+                method="delete",
+                url=f"{base_url}/{identifier}",
+            )
+            backoff_request(
+                method="post",
+                url=base_url,
+                content=data,
+                headers={"Content-Type": "application/xml"},
+            )
+        else:
+            log.info("CSW Resource is already updated, skipping")
+    except NotFoundError:
+        backoff_request(
+            method="post",
+            url=base_url,
             content=data,
             headers={"Content-Type": "application/xml"},
-        ).raise_for_status()
-        log.info("created record", response=response.text, status=response.status_code)
-    except httpx.HTTPStatusError as e:
-        log.error(
-            "create failed",
-            response=e.response.text,
-            status=e.response.status_code,
-            request=e.request.url,
         )
 
 

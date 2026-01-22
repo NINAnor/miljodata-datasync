@@ -1,8 +1,12 @@
 import re
 
+import backoff
+import httpx
 from duckdb import DuckDBPyConnection
 from lxml import etree
 from lxml.etree import _Element
+
+from ..settings import log
 
 PARSER: etree.XMLParser = etree.XMLParser(resolve_entities=False)
 
@@ -45,3 +49,48 @@ class DuckDBAtomicTransaction:
             self.conn.commit()
         else:
             self.conn.rollback()
+
+
+class ClientError(httpx.HTTPStatusError):
+    pass
+
+
+class NotFoundError(httpx.HTTPStatusError):
+    pass
+
+
+class ServerError(httpx.HTTPStatusError):
+    pass
+
+
+@backoff.on_exception(
+    backoff.expo,
+    (httpx.ConnectError, ServerError),
+    max_tries=5,
+    jitter=backoff.full_jitter,
+)
+def backoff_request(*args, log=log, **kwargs):
+    response = httpx.request(*args, **kwargs)
+    log.debug(
+        "request",
+        request=response.request.url,
+        response=response.text,
+        status=response.status_code,
+    )
+
+    if response.status_code // 100 == 4:
+        if response.status_code == 404:
+            raise NotFoundError(
+                "Not found error", request=response.request, response=response
+            )
+        else:
+            raise ClientError(
+                "Client error", request=response.request, response=response
+            )
+
+    if response.status_code // 100 == 5:
+        raise ServerError(
+            "response over 500", request=response.request, response=response
+        )
+
+    return response

@@ -1,12 +1,12 @@
 from copy import deepcopy
 from time import sleep
 
-import backoff
 import httpx
 from deepdiff import DeepDiff
 from lxml import etree
 from pygeometa.schemas.gbif_eml import GBIF_EMLOutputSchema
 
+from ..libs.helpers import NotFoundError, backoff_request
 from ..settings import log
 from .settings import (
     AWS_ENDPOINT_URL,
@@ -21,57 +21,14 @@ PARSER = etree.XMLParser(resolve_entities=False)
 eml = GBIF_EMLOutputSchema()
 
 
-class NotFoundError(httpx.HTTPStatusError):
-    pass
-
-
-@backoff.on_exception(
-    backoff.expo,
-    (httpx.ConnectError, httpx.HTTPStatusError),
-    max_tries=5,
-    jitter=backoff.full_jitter,
-)
-def check_url_exists(url, auth, log) -> httpx.Response:
-    response = httpx.get(
-        url,
-        auth=auth,
-    )
-    if response.status_code // 100 == 4:
-        raise NotFoundError(
-            "Resource not found", request=response.request, response=response
-        )
-
-    response.raise_for_status()
-
-    log.debug("found", response=response.text, status=response.status_code)
-    return response
-
-
-@backoff.on_exception(
-    backoff.expo,
-    (httpx.ConnectError, httpx.HTTPStatusError),
-    max_tries=10,
-    jitter=backoff.full_jitter,
-)
-def req(*args, log, **kwargs):
-    response = httpx.request(*args, **kwargs)
-
-    if response.status_code // 100 == 5:
-        raise httpx.HTTPStatusError(
-            "response over 500", request=response.request, response=response
-        )
-
-    return response
-
-
 def publish_pygeoapi_resource(base_url, data):
     log.debug("publishing configuration", data=data)
     auth = httpx.BasicAuth(username=PUBLISH_USER, password=PUBLISH_PASSWORD)
 
     try:
-        resource = check_url_exists(
-            f"{base_url}/admin/config/resources/{data['id']}",
-            log=log,
+        resource = backoff_request(
+            method="get",
+            url=f"{base_url}/admin/config/resources/{data['id']}",
             auth=auth,
         )
         old_data = resource.json()
@@ -81,12 +38,11 @@ def publish_pygeoapi_resource(base_url, data):
         log.debug("compared", diff=diff)
 
         if diff:
-            response = req(
+            response = backoff_request(
                 method="put",
                 url=f"{base_url}/admin/config/resources/{data['id']}",
                 json=data,
                 auth=auth,
-                log=log,
             )
             log.info(
                 "updated collection",
@@ -96,14 +52,13 @@ def publish_pygeoapi_resource(base_url, data):
         else:
             log.info("skip, already updated")
     except NotFoundError:
-        response = req(
+        response = backoff_request(
             method="post",
             url=f"{base_url}/admin/config/resources",
             json={
                 data["id"]: data,
             },
             auth=auth,
-            log=log,
         )
         log.info(
             "created collection", response=response.text, status=response.status_code
@@ -111,8 +66,9 @@ def publish_pygeoapi_resource(base_url, data):
 
     sleep(5)
 
-    check_url_exists(
-        f"{base_url}/admin/config/resources/{data['id']}",
+    backoff_request(
+        method="get",
+        url=f"{base_url}/admin/config/resources/{data['id']}",
         auth=auth,
         log=log,
     )
