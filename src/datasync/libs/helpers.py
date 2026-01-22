@@ -59,17 +59,21 @@ class NotFoundError(httpx.HTTPStatusError):
     pass
 
 
+class PollingError(NotFoundError):
+    pass
+
+
 class ServerError(httpx.HTTPStatusError):
     pass
 
 
 @backoff.on_exception(
     backoff.expo,
-    (httpx.ConnectError, ServerError),
+    (httpx.ConnectError, ServerError, PollingError),
     max_tries=5,
     jitter=backoff.full_jitter,
 )
-def backoff_request(*args, log=log, **kwargs):
+def backoff_request(*args, log=log, polling=False, **kwargs):
     response = httpx.request(*args, **kwargs)
     log.debug(
         "request",
@@ -80,9 +84,14 @@ def backoff_request(*args, log=log, **kwargs):
 
     if response.status_code // 100 == 4:
         if response.status_code == 404:
-            raise NotFoundError(
-                "Not found error", request=response.request, response=response
-            )
+            if polling:
+                raise PollingError(
+                    "Polling: not found", request=response.request, response=response
+                )
+            else:
+                raise NotFoundError(
+                    "Not found error", request=response.request, response=response
+                )
         else:
             raise ClientError(
                 "Client error", request=response.request, response=response

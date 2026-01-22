@@ -71,6 +71,7 @@ def publish_pygeoapi_resource(base_url, data):
         url=f"{base_url}/admin/config/resources/{data['id']}",
         auth=auth,
         log=log,
+        polling=True,
     )
 
 
