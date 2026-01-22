@@ -46,7 +46,7 @@ def publish_csw_record(base_url, data, identifier):
         ).raise_for_status()
         log.info("created record", response=response.text, status=response.status_code)
     except httpx.HTTPStatusError as e:
-        log.warn(
+        log.error(
             "create failed",
             response=e.response.text,
             status=e.response.status_code,
