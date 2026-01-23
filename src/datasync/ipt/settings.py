@@ -16,8 +16,6 @@ RESOURCES_PREFIX: str = "/ipt/datasets/"
 GEOAPI_PATH: str = "/geoapi/ipt-resources.json"
 GEOAPI_PUBLISH_URL: str = env.str("GEOAPI_PUBLISH_URL", default=None)
 OGC_RECORDS_PUBLISH_URL: str = env.str("OGC_RECORDS_PUBLISH_URL")
-PUBLISH_USER = env.str("PUBLISH_USER", default=None)
-PUBLISH_PASSWORD = env.str("PUBLISH_PASSWORD", default=None)
 CSW_PATH: str = "/csw/ipt-metadata.parquet"
 S3_URL_STYLE: str = "path"
 S3_BUCKET: str = env.str("IPT_AWS_BUCKET")

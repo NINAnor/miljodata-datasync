@@ -1,9 +1,8 @@
 from lxml import etree
 from pygeometa.schemas.gbif_eml import GBIF_EMLOutputSchema
 from pygeometa.schemas.iso19139 import ISO19139OutputSchema
-from xmldiff.main import diff_texts
 
-from ..libs.helpers import NotFoundError, backoff_request
+from ..libs.csw import publish_csw_record
 from ..settings import log
 from .settings import (
     AWS_ENDPOINT_URL,
@@ -18,40 +17,6 @@ from .settings import (
 PARSER = etree.XMLParser(resolve_entities=False)
 eml = GBIF_EMLOutputSchema()
 iso = ISO19139OutputSchema()
-
-
-def publish_csw_record(base_url, data, identifier):
-    # see: https://docs.pycsw.org/en/latest/transactions.html#id2
-
-    try:
-        response = backoff_request(
-            method="get",
-            url=f"{base_url}/{identifier}?f=xml",
-        )
-        diff = diff_texts(data, response.text)
-        log.debug("xml diff", diff=diff)
-
-        if diff:
-            # PUT doesn't work: https://github.com/geopython/pycsw/issues/1194
-            backoff_request(
-                method="delete",
-                url=f"{base_url}/{identifier}",
-            )
-            backoff_request(
-                method="post",
-                url=base_url,
-                content=data,
-                headers={"Content-Type": "application/xml"},
-            )
-        else:
-            log.info("CSW Resource is already updated, skipping")
-    except NotFoundError:
-        backoff_request(
-            method="post",
-            url=base_url,
-            content=data,
-            headers={"Content-Type": "application/xml"},
-        )
 
 
 def eml_write_record(ds, text, skip):
