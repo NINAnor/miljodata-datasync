@@ -4,7 +4,7 @@ import httpx
 from deepdiff import DeepDiff
 
 from ..settings import env, log
-from .helpers import NotFoundError, backoff_request
+from .helpers import ClientError, backoff_request
 
 
 def publish_pygeoapi_resource(base_url, data):
@@ -43,18 +43,26 @@ def publish_pygeoapi_resource(base_url, data):
             )
         else:
             log.info("skip, already updated")
-    except NotFoundError:
-        response = backoff_request(
-            method="post",
-            url=f"{base_url}/admin/config/resources",
-            json={
-                data["id"]: data,
-            },
-            auth=auth,
-        )
-        log.info(
-            "created collection", response=response.text, status=response.status_code
-        )
+    except ClientError as e:
+        log.debug("not found, creating")
+        response_data = e.response.json()
+        if response_data["code"] == "ResourceNotFound":
+            response = backoff_request(
+                method="post",
+                url=f"{base_url}/admin/config/resources",
+                json={
+                    data["id"]: data,
+                },
+                auth=auth,
+            )
+            log.info(
+                "created collection",
+                response=response.text,
+                status=response.status_code,
+            )
+        else:
+            log.error("Unexpected response", data=response_data)
+            raise Exception("Client error") from e
 
     sleep(5)
 

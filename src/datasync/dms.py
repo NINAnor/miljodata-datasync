@@ -5,6 +5,7 @@ import typer
 from pygeometa.schemas.iso19139 import ISO19139OutputSchema
 
 from .libs.csw import publish_csw_record
+from .libs.geoapi import publish_pygeoapi_resource
 from .libs.helpers import ClientError
 from .settings import (
     env,
@@ -19,6 +20,7 @@ DMS_BUCKET = env("DMS_BUCKET", default="")
 DMS_GEOAPI_PREFIX = env("DMS_GEOAPI_PREFIX", default="/geoapi/")
 
 DMS_OGC_RECORDS_PUBLISH_URL: str = env.str("DMS_OGC_RECORDS_PUBLISH_URL", default=None)
+DMS_GEOAPI_PUBLISH_URL: str = env.str("DMS_GEOAPI_PUBLISH_URL", default=None)
 
 
 app = typer.Typer()
@@ -372,28 +374,12 @@ def generate_csw_metadata(
 @app.command()
 def generate_geoapi_config(
     base_url: str = DMS_DATASETS_BASE,
-    access_key=DMS_ACCESS_KEY,
-    secret_key=DMS_SECRET_KEY,
-    endpoint=DMS_AWS_ENDPOINT,
-    bucket=DMS_BUCKET,
-    prefix=DMS_GEOAPI_PREFIX,
-    lang="en",
+    publish_url=DMS_GEOAPI_PUBLISH_URL,
 ):
     conn = duckdb.connect()
-
-    conn.sql("Install spatial; load spatial")
+    conn.install_extension("spatial")
+    conn.load_extension("spatial")
     conn.create_function("guess_type", guess_type)
-
-    conn.execute(f"""
-        CREATE OR REPLACE SECRET secret (
-            TYPE s3,
-            REGION 'eu-west-1',
-            KEY_ID '{access_key}',
-            SECRET '{secret_key}',
-            ENDPOINT '{endpoint.replace(r"https://", "")}',
-            URL_STYLE 'path'
-        );
-    """).fetchall()
 
     datasets = conn.read_parquet(base_url + "datasets_dataset.parquet").filter(
         "json_keys(metadata) <> []"
@@ -419,19 +405,13 @@ def generate_geoapi_config(
     )
 
     descriptions = (
-        (
-            rasters.set_alias("r")
-            .join(datasets.set_alias("d"), condition="r.dataset_id = d.id")
-            .select(
-                f"r.id, unnest(json_transform(d.metadata->'$.descriptions[*]', '{descriptions_structure}'), recursive := true)"  # noqa: E501
-            )
+        rasters.set_alias("r")
+        .join(datasets.set_alias("d"), condition="r.dataset_id = d.id")
+        .select(
+            f"r.id, unnest(json_transform(d.metadata->'$.descriptions[*]', '{descriptions_structure}'), recursive := true)"  # noqa: E501
         )
-        .filter(
-            duckdb.ColumnExpression("lang") == duckdb.ConstantExpression(lang),
-        )
-        .aggregate(
-            "id, lang, string_agg('# ' || descriptionType || '\n' || description, '\n') as description"  # noqa: E501
-        )
+    ).aggregate(
+        "id, lang, string_agg('# ' || descriptionType || '\n' || description, '\n') as description"  # noqa: E501
     )
     log.debug(descriptions)
 
@@ -453,7 +433,7 @@ def generate_geoapi_config(
              left join descriptions as descr on descr.id = d.id
              left join subjects as sbj on sbj.id = d.id
              select
-                d.id || '/' || r.id as id,
+                r.id as id,
                 'collection' as type,
                 'default' as visibility,
                 d.title || ' - ' || r.title as title,
@@ -465,7 +445,7 @@ def generate_geoapi_config(
                             ST_XMIN(r.extent), ST_YMIN(r.extent),
                             ST_XMAX(r.extent), ST_YMAX(r.extent),
                         ],
-                        crs: 4326
+                        crs: '4326'
                     }
                 } as extents,
                 [{
@@ -482,23 +462,18 @@ def generate_geoapi_config(
     """)
 
     log.debug(geo_raster)
-    conn.sql(f"""
-        COPY geo_raster to 's3://{bucket}{prefix}/dms-raster.json' (FORMAT json, ARRAY true)
-    """)  # noqa: E501
+
+    for e in geo_raster.to_arrow_table().to_pylist():
+        publish_pygeoapi_resource(publish_url, e)
+
     descriptions = (
-        (
-            vectors.set_alias("r")
-            .join(datasets.set_alias("d"), condition="r.dataset_id = d.id")
-            .select(
-                f"r.id, unnest(json_transform(d.metadata->'$.descriptions[*]', '{descriptions_structure}'), recursive := true)"  # noqa: E501
-            )
+        vectors.set_alias("r")
+        .join(datasets.set_alias("d"), condition="r.dataset_id = d.id")
+        .select(
+            f"r.id, unnest(json_transform(d.metadata->'$.descriptions[*]', '{descriptions_structure}'), recursive := true)"  # noqa: E501
         )
-        .filter(
-            duckdb.ColumnExpression("lang") == duckdb.ConstantExpression(lang),
-        )
-        .aggregate(
-            "id, lang, string_agg('# ' || descriptionType || '\n' || description, '\n') as description"  # noqa: E501
-        )
+    ).aggregate(
+        "id, lang, string_agg('# ' || descriptionType || '\n' || description, '\n') as description"  # noqa: E501
     )
     log.debug(descriptions)
 
@@ -521,7 +496,7 @@ def generate_geoapi_config(
              left join descriptions as descr on descr.id = d.id
              left join subjects as sbj on sbj.id = d.id
              select
-                d.id || '/' || r.id || '/' || dt.name as id,
+                r.id || '__' || dt.name as id,
                 'collection' as type,
                 'default' as visibility,
                 d.title || ' - ' || r.title as title,
@@ -533,7 +508,7 @@ def generate_geoapi_config(
                             ST_XMIN(dt.extent), ST_YMIN(dt.extent),
                             ST_XMAX(dt.extent), ST_YMAX(dt.extent),
                         ],
-                        crs: 4326
+                        crs: '4326'
                     }
                 } as extents,
                 [{
@@ -552,9 +527,8 @@ def generate_geoapi_config(
     """)
     log.debug(geo_vector)
 
-    conn.sql(f"""
-        COPY geo_vector to 's3://{bucket}{prefix}/dms-vector.json' (FORMAT json, ARRAY true)
-    """)  # noqa: E501
+    for e in geo_vector.to_arrow_table().to_pylist():
+        publish_pygeoapi_resource(publish_url, e)
 
 
 if __name__ == "__main__":
