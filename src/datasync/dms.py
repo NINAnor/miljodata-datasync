@@ -1,9 +1,11 @@
 import duckdb
 import orjson
+import s3fs
 import typer
 from pygeometa.schemas.iso19139 import ISO19139OutputSchema
 
-from .libs.helpers import get_anytext
+from .libs.csw import publish_csw_record
+from .libs.helpers import ClientError
 from .settings import (
     env,
     log,
@@ -15,7 +17,8 @@ DMS_SECRET_KEY = env("DMS_SECRET_KEY", default="")
 DMS_AWS_ENDPOINT = env("DMS_AWS_ENDPOINT", default="")
 DMS_BUCKET = env("DMS_BUCKET", default="")
 DMS_GEOAPI_PREFIX = env("DMS_GEOAPI_PREFIX", default="/geoapi/")
-DMS_CSW_PREFIX = env("DMS_CSW_PREFIX", default="/csw/dms-metadata.parquet")
+
+DMS_OGC_RECORDS_PUBLISH_URL: str = env.str("DMS_OGC_RECORDS_PUBLISH_URL", default=None)
 
 
 app = typer.Typer()
@@ -28,17 +31,6 @@ def guess_type(driver: str) -> str:
     return "image/tiff"
 
 
-def to_iso19139(metadata: str) -> str | dict:
-    loaded = orjson.loads(metadata)
-    log.debug(loaded, id=loaded.get("identification", {}).get("identifier"))
-    try:
-        xml = iso.write(loaded)
-        return xml
-    except Exception as e:
-        log.exception(e, id=loaded.get("identification", {}).get("identifier"))
-        return ""
-
-
 @app.command()
 def generate_csw_metadata(
     base_url: str = DMS_DATASETS_BASE,
@@ -46,27 +38,22 @@ def generate_csw_metadata(
     secret_key=DMS_SECRET_KEY,
     endpoint=DMS_AWS_ENDPOINT,
     bucket=DMS_BUCKET,
-    prefix=DMS_CSW_PREFIX,
-    lang="en",
+    publish_url=DMS_OGC_RECORDS_PUBLISH_URL,
+    limit: int | None = typer.Option(
+        default=None,
+    ),
 ):
-    # TODO: localize the output based on the language in input
+    s3 = s3fs.S3FileSystem(
+        endpoint_url=endpoint,
+        key=access_key,
+        secret=secret_key,
+    )
 
     conn = duckdb.connect()
-    conn.sql("INSTALL yaml FROM community; LOAD yaml; Install spatial; load spatial")
-
-    conn.execute(f"""
-        CREATE OR REPLACE SECRET secret (
-            TYPE s3,
-            REGION 'eu-west-1',
-            KEY_ID '{access_key}',
-            SECRET '{secret_key}',
-            ENDPOINT '{endpoint.replace(r"https://", "")}',
-            URL_STYLE 'path'
-        );
-    """).fetchall()
-
-    conn.create_function("to_iso19139", to_iso19139)
-    conn.create_function("xml_bag", get_anytext)
+    conn.install_extension("spatial")
+    conn.install_extension("httpfs")
+    conn.load_extension("spatial")
+    conn.load_extension("httpfs")
 
     datasets = conn.read_parquet(base_url + "datasets_dataset.parquet").filter(
         "json_keys(metadata) <> []"
@@ -88,23 +75,31 @@ def generate_csw_metadata(
     """)
     log.debug(resources)
 
-    metadata = resources.select(f"""
-        id,
-        dataset_id,
-        {{
-        -- TODO: investigate language
-        language: '{lang}',
+    # --- General metadata --- #
+
+    metadata = (
+        resources.set_alias("r")
+        .join(datasets.set_alias("d"), condition="r.dataset_id = d.id")
+        .select("""
+        r.id,
+        r.dataset_id,
+        {
+        identifier: r.id,
+        language: 'en',
+        language_alternate: 'no',
         charset: 'utf8',
         hierarchylevel: case
-            when extent is not null then 'dataset' else 'nonGeographicDataset'
+            when r.extent is not null then 'dataset' else 'nonGeographicDataset'
         end,
-        datestamp: current_localtimestamp()::date,
-        -- TODO: this needs some fixes
-        dataseturi: uri,
-        }}::json as metadata
+        datestamp: r.last_modified_at,
+        dataseturi: r.uri,
+        }::json as metadata
                     """)
+    )
 
     log.debug(metadata)
+
+    # --- Spatial --- #
 
     spatial = resources.select("""
         id,
@@ -121,14 +116,14 @@ def generate_csw_metadata(
 
     log.debug(spatial)
 
+    # --- Descriptions --- #
+
     descriptions_structure = datasets.aggregate(
         "json_group_structure(metadata->'$.descriptions[*]') as stucture"
     ).fetchone()
     descriptions_structure = (
         descriptions_structure[0] if descriptions_structure else None
     )
-
-    log.debug("Generated schema of abstract", structure=descriptions_structure)
 
     descriptions = (
         resources.set_alias("r")
@@ -143,10 +138,11 @@ def generate_csw_metadata(
         (
             duckdb.ColumnExpression("descriptionType")
             == duckdb.ConstantExpression("Abstract")
-        )
-        and (duckdb.ColumnExpression("lang") == duckdb.ConstantExpression(lang)),
+        ),
     ).aggregate("id, lang, string_agg(description, '\n') as description")
     log.debug(abstracts)
+
+    # --- Licenses --- #
 
     licenses = (
         resources.set_alias("r")
@@ -154,10 +150,9 @@ def generate_csw_metadata(
         .select(
             """r.id, unnest(json_transform(d.metadata->'$.rightsList[*]', '[{"lang": "VARCHAR", "rights": "VARCHAR", "rightsURI": "VARCHAR", "rightsIdentifier": "VARCHAR", "schemeUri": "VARCHAR"}]'), recursive := true)"""  # noqa: E501
         )
-        .filter(duckdb.ColumnExpression("lang") == duckdb.ConstantExpression(lang))
         .aggregate("id, lang, first(rights) as rights, first(rightsURI) as url")
     )
-    log.debug(licenses)
+    log.debug("licenses", data=licenses)
 
     subjects = (
         resources.set_alias("r")
@@ -183,62 +178,66 @@ def generate_csw_metadata(
             """
         )
     )
-    log.debug(subjects)
+    log.debug("subjects", data=subjects)
+
+    # --- Identification --- #
 
     identification = conn.sql("""
-    from resources as r
-    join datasets as d on r.dataset_id = d.id
-    left join abstracts as a on a.id = r.id
-    left join licenses as l on l.id = r.id
-    left join subjects as s on s.id = r.id
-    select
-        r.id,
-        {
-            identifier: r.id,
-            language: d.metadata->'$.language',
-            title: d.title || ' - ' || r.title,
-            fee: 'None',
-            status: 'completed',
-            rights: l.rights,
-            abstract: a.description || '\n' || r.description,
-            url: r.uri,
-            dates: {
-                creation: r.created_at,
-                revision: r.last_modified_at
-            },
-            extents: {
-                spatial: case when r.extent is not null then [
-                    {
+        from resources as r
+        join datasets as d on r.dataset_id = d.id
+        left join abstracts as a on a.id = r.id
+        left join licenses as l on l.id = r.id
+        left join subjects as s on s.id = r.id
+        select
+            r.id,
+            {
+                language: d.metadata->'$.language',
+                title: d.title || ' - ' || r.title,
+                fee: 'None',
+                status: 'completed',
+                rights: l.rights,
+                abstract: a.description || '\n' || r.description,
+                edition: d.version,
+                url: r.uri,
+                dates: {
+                    creation: r.created_at,
+                    revision: r.last_modified_at
+                },
+                extents: {
+                    spatial: case when r.extent is not null then [
+                        {
+                            bbox: [
+                                ST_XMIN(r.extent), ST_YMIN(r.extent),
+                                ST_XMAX(r.extent), ST_YMAX(r.extent),
+                            ],
+                            crs: 4326
+                        }
+                    ] else [{
+                        -- default to Norway BBOX
                         bbox: [
-                            ST_XMIN(r.extent), ST_YMIN(r.extent),
-                            ST_XMAX(r.extent), ST_YMAX(r.extent),
+                            4.99207807783, 58.0788841824, 31.29341841, 80.6571442736
                         ],
                         crs: 4326
+                        }]
+                    end
+                },
+                --license: {
+                --    "name": coalesce(l.rights, 'All rights reserved'),
+                    --"uri": coalesce(l.url, ''),
+                --},
+                keywords: coalesce(s.keywords, {
+                    "default": {
+                        -- need to join with dataset to read those!
+                        keywords_type: 'theme',
+                        keywords: [],
                     }
-                ] else [{
-                    -- default to Norway BBOX
-                    bbox: [
-                        4.99207807783, 58.0788841824, 31.29341841, 80.6571442736
-                    ],
-                    crs: 4326
-                    }]
-                end
-            },
-            license: {
-                "name": coalesce(l.rights, 'All rights reserved'),
-                "uri": coalesce(l.url, ''),
-            },
-            keywords: coalesce(s.keywords, {
-                "default": {
-                    -- need to join with dataset to read those!
-                    keywords_type: 'theme',
-                    keywords: [],
-                }
-            }),
-        }::json as identification
+                }),
+            }::json as identification
     """)  # noqa: E501
 
-    log.debug(identification)
+    log.debug("identification", data=identification)
+
+    # --- Content Info --- #
 
     content_info = resources.select("""
         id,
@@ -251,7 +250,9 @@ def generate_csw_metadata(
         }::json as content_info
     """)
 
-    log.debug(content_info)
+    log.debug("content_info", data=content_info)
+
+    # --- Contacts --- #
 
     contacts = (
         contributions.select("""
@@ -281,15 +282,9 @@ def generate_csw_metadata(
         )
     )
 
-    contributors_csw = contributions.aggregate(
-        "dataset_id, string_agg(last_name || ', ' || first_name, ';') as contributors",
-        group_expr="dataset_id",
-    )
+    log.debug("contacts", data=contacts)
 
-    log.debug(contributors_csw)
-
-    log.debug(contacts)
-
+    # --- Distribution --- #
     distribution = resources.select("""
         id,
         {
@@ -297,7 +292,7 @@ def generate_csw_metadata(
                 url: uri,
                 type: case when type = 'raster' then 'FILE:GEO'
                         when type = 'vector' then 'FILE:GEO'
-                        else 'download'
+                        else 'WWW:FILE'
                 end,
                 name: title,
                 description: description,
@@ -306,11 +301,12 @@ def generate_csw_metadata(
         }::json as distribution
         """)
 
-    log.debug(distribution)
+    log.debug("distribution", data=distribution)
 
     res = conn.sql(
         """
-            select r.* rename (metadata as res_metadata),
+            select
+            r.id,
             {
                 mcf: { version: 1.0 },
                 metadata: m.metadata,
@@ -319,81 +315,58 @@ def generate_csw_metadata(
                 spatial: sp.spatial,
                 distribution: d.distribution,
                 contact: c.contact
-            }::json as metadata
+            }::json as metadata,
+            '/data/project/' || ds.project_id || '/datasets/' || ds.id || '/' || r.id || '.xml' as path,
             from resources as r
+            join datasets as ds on r.dataset_id = ds.id
             join metadata as m on r.id = m.id
             join identification as i on m.id = i.id
             join content_info as ci on ci.id = m.id
             join spatial as sp on sp.id = m.id
             join distribution as d on d.id = m.id
             join contacts as c on m.dataset_id = c.dataset_id
-        """
+        """  # noqa: E501
     )
     log.debug(res)
 
-    iso_xml = res.select("*, to_iso19139(metadata) as xml")
+    i = 0
+    for item in res.fetchall():
+        mcf = orjson.loads(item[1])
 
-    log.debug(iso_xml)
+        if "pointOfContact" in mcf["contact"]:
+            mcf["contact"]["pointOfContact"] = mcf["contact"]["pointOfContact"] | {
+                "organization": "Norsk institutt for naturforskning",
+                "url": "https://www.nina.no",
+                "email": "firmapost@nina.no",
+            }
+        else:
+            mcf["contact"]["pointOfContact"] = {
+                "organization": "Norsk institutt for naturforskning",
+                "url": "https://www.nina.no",
+                "email": "firmapost@nina.no",
+                "individualname": "",
+                "phone": "",
+                "positionname": "",
+                "fax": "",
+                "address": "",
+                "postalcode": "",
+                "country": "Norway",
+                "city": "Trondheim",
+            }
 
-    csw = conn.sql("""
-        select
-            r.id as identifier,
-            'gmd:MD_Metadata' as typename,
-            'http://www.isotc211.org/2005/gmd' as schema,
-            'local' as mdsource,
-            coalesce(
-                strftime(r.created_at, '%Y-%m-%d'),
-                ''
-            ) as insert_date,
-            r.metadata->>'$.identification.title' as title,
-            coalesce(
-                strftime(r.last_modified_at, '%Y-%m-%d'),
-                ''
-            ) as date_modified,
-            'dataset' as type,
-            null::varchar as format,
-            ST_AsText(case
-                when r.extent is not null then r.extent
-                else st_makeEnvelope(4.99207807783, 58.0788841824, 31.29341841, 80.6571442736)
-            end) as wkt_geometry,
-            r.xml as metadata,
-            r.xml,
-            coalesce(
-                replace(
-                list_aggregate(
-                   r.metadata->'$.identification.keywords.default.keywords[*]',
-                   'string_agg',
-                   ','
-                ), '"', ''),
-                ''
-            ) as keywords,
-            'application/xml' as metadata_type,
-            xml_bag(r.xml) as anytext,
-            coalesce(r.metadata->>'$.identification.abstract', '') as abstract,
-            coalesce(
-                strftime(r.last_modified_at, '%Y-%m-%d'),
-                '',
-            ) as date,
-            'Norsk institutt for naturforskning' as creator,
-            'Norsk institutt for naturforskning' as publisher,
-            coalesce(c.contributors, '') as contributor,
-            ([{
-                name: r.title,
-                url: r.uri,
-                description: r.description,
-                protocol: r.metadata->>'$.distribution.file.type'
-            }]::json)::varchar as links
-        from iso_xml as r
-        left join contributors_csw as c on c.dataset_id = r.dataset_id
-    """)  # noqa: E501
+        metadata = iso.write(mcf)
+        log.debug("metadata", metadata=metadata, original=mcf)
+        try:
+            publish_csw_record(publish_url, metadata, item[0])
+        except ClientError as e:
+            log.error(e)
 
-    log.debug(csw)
+        with s3.open(f"{bucket}{item[2]}", mode="w") as f:
+            f.write(metadata)
 
-    csw.write_parquet(
-        f"s3://{bucket}{prefix}",
-        compression="zstd",
-        overwrite=True,
-    )
+        i += 1
+        if limit and limit < i:
+            break
 
 
 @app.command()
@@ -406,9 +379,8 @@ def generate_geoapi_config(
     prefix=DMS_GEOAPI_PREFIX,
     lang="en",
 ):
-    # TODO: localize the output based on the language in input
-
     conn = duckdb.connect()
+
     conn.sql("Install spatial; load spatial")
     conn.create_function("guess_type", guess_type)
 
