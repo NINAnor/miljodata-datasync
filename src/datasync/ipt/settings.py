@@ -14,12 +14,12 @@ CACHE_PATH: str = env.str("IPT_CACHE_PATH", default=".dwca_cache/")
 CONNECTION: str = ":memory:"
 RESOURCES_PREFIX: str = "/ipt/datasets/"
 GEOAPI_PUBLISH_URL: str = env.str("IPT_GEOAPI_PUBLISH_URL", default=None)
-OGC_RECORDS_PUBLISH_URL: str = env.str("IPT_OGC_RECORDS_PUBLISH_URL")
+OGC_RECORDS_PUBLISH_URL: str = env.str("IPT_OGC_RECORDS_PUBLISH_URL", default=None)
 S3_URL_STYLE: str = "path"
-S3_BUCKET: str = env.str("IPT_AWS_BUCKET")
-AWS_SECRET_KEY: str = env.str("IPT_AWS_SECRET_KEY")
-AWS_ENDPOINT_URL: str = env.str("IPT_AWS_ENDPOINT_URL")
-AWS_ACCESS_KEY: str = env.str("IPT_AWS_ACCESS_KEY")
+S3_BUCKET: str = env.str("IPT_AWS_BUCKET", default=None)
+AWS_SECRET_KEY: str = env.str("IPT_AWS_SECRET_KEY", default=None)
+AWS_ENDPOINT_URL: str = env.str("IPT_AWS_ENDPOINT_URL", default=None)
+AWS_ACCESS_KEY: str = env.str("IPT_AWS_ACCESS_KEY", default=None)
 DMS_PROJECT_ID: str = env.str("IPT_DMS_PROJECT_ID", default="911200")
 
 
