@@ -13,17 +13,14 @@ IPT_URL = env.str("IPT_URL", default="https://ipt.nina.no")
 CACHE_PATH: str = env.str("IPT_CACHE_PATH", default=".dwca_cache/")
 CONNECTION: str = ":memory:"
 RESOURCES_PREFIX: str = "/ipt/datasets/"
-GEOAPI_PATH: str = "/geoapi/ipt-resources.json"
-GEOAPI_PUBLISH_URL: str = env.str("GEOAPI_PUBLISH_URL", default=None)
-OGC_RECORDS_PUBLISH_URL: str = env.str("OGC_RECORDS_PUBLISH_URL")
-CSW_PATH: str = "/csw/ipt-metadata.parquet"
+GEOAPI_PUBLISH_URL: str = env.str("IPT_GEOAPI_PUBLISH_URL", default=None)
+OGC_RECORDS_PUBLISH_URL: str = env.str("IPT_OGC_RECORDS_PUBLISH_URL")
 S3_URL_STYLE: str = "path"
 S3_BUCKET: str = env.str("IPT_AWS_BUCKET")
 AWS_SECRET_KEY: str = env.str("IPT_AWS_SECRET_KEY")
 AWS_ENDPOINT_URL: str = env.str("IPT_AWS_ENDPOINT_URL")
 AWS_ACCESS_KEY: str = env.str("IPT_AWS_ACCESS_KEY")
 DMS_PROJECT_ID: str = env.str("IPT_DMS_PROJECT_ID", default="911200")
-METADATA_PREFIX: str = "/metadata/ipt/"
 
 
 os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "WHEN_REQUIRED"
