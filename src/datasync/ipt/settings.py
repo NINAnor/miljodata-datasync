@@ -59,14 +59,17 @@ conn.load_extension("httpfs")
 logging.info(
     "load secrets",
 )
-conn.execute(f"""
-    CREATE OR REPLACE SECRET secret (
-        TYPE s3,
-        PROVIDER config,
-        KEY_ID '{AWS_ACCESS_KEY}',
-        SECRET '{AWS_SECRET_KEY}',
-        ENDPOINT '{AWS_ENDPOINT_URL.replace(r"https://", "")}',
-        URL_STYLE '{S3_URL_STYLE}',
-        SCOPE 's3://{S3_BUCKET}'
-    );
-""").fetchall()
+if AWS_ENDPOINT_URL:
+    conn.execute(f"""
+        CREATE OR REPLACE SECRET secret (
+            TYPE s3,
+            PROVIDER config,
+            KEY_ID '{AWS_ACCESS_KEY}',
+            SECRET '{AWS_SECRET_KEY}',
+            ENDPOINT '{AWS_ENDPOINT_URL.replace(r"https://", "")}',
+            URL_STYLE '{S3_URL_STYLE}',
+            SCOPE 's3://{S3_BUCKET}'
+        );
+    """).fetchall()
+else:
+    logging.error("AWS_ENDPOINT_URL is required")
