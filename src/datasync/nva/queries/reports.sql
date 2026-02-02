@@ -1,87 +1,21 @@
+-- NINA rapporter
 SELECT
   "source"."identifier" AS "identifier",
-  "source"."model_version" AS "model_version",
-  "source"."resource_owner__owner" AS "resource_owner__owner",
-  "source"."resource_owner__owner_affiliation" AS "resource_owner__owner_affiliation",
-  "source"."type" AS "type",
-  "source"."acontext" AS "acontext",
-  "source"."index_document_created_at" AS "index_document_created_at",
-  "source"."entity_description__reference" AS "entity_description__reference",
-  "source"."entity_description__contributors_count" AS "entity_description__contributors_count",
-  "source"."entity_description__main_title" AS "entity_description__main_title",
-  "source"."entity_description__alternative_abstracts" AS "entity_description__alternative_abstracts",
-  "source"."entity_description__language" AS "entity_description__language",
-  "source"."entity_description__contributors" AS "entity_description__contributors",
-  "source"."entity_description__contributors_preview" AS "entity_description__contributors_preview",
-  "source"."entity_description__type" AS "entity_description__type",
-  "source"."entity_description__publication_date" AS "entity_description__publication_date",
-  "source"."created_date" AS "created_date",
-  "source"."modified_date" AS "modified_date",
-  "source"."publisher__id" AS "publisher__id",
-  "source"."publisher__type" AS "publisher__type",
-  "source"."files_status" AS "files_status",
-  "source"."id" AS "id",
-  "source"."pending_open_file_count" AS "pending_open_file_count",
-  "source"."published_date" AS "published_date",
-  "source"."status" AS "status",
-  "source"."_dlt_load_id" AS "_dlt_load_id",
-  "source"."_dlt_id" AS "_dlt_id",
-  "source"."entity_description__npi_subject_heading" AS "entity_description__npi_subject_heading",
-  "source"."entity_description__abstract" AS "entity_description__abstract",
-  "source"."entity_description__tags" AS "entity_description__tags",
-  "source"."handle" AS "handle",
-  "source"."entity_description__description" AS "entity_description__description",
-  "source"."entity_description__metadata_source" AS "entity_description__metadata_source",
-  "source"."scientific_index__year" AS "scientific_index__year",
-  "source"."scientific_index__type" AS "scientific_index__type",
-  "source"."scientific_index__status" AS "scientific_index__status",
-  "source"."entity_description__alternative_titles" AS "entity_description__alternative_titles",
-  "source"."doi" AS "doi",
-  "source"."duplicate_of" AS "duplicate_of",
-  "source"."ref_type" AS "ref_type",
-  "source"."pub_instance_type" AS "pub_instance_type",
-  "source"."volume" AS "volume",
-  "source"."pages_type" AS "pages_type",
-  "source"."ctx_identifier" AS "ctx_identifier",
-  "source"."ctx_year" AS "ctx_year",
-  "source"."ctx_name" AS "ctx_name",
-  "source"."ctx_type" AS "ctx_type",
-  "source"."ctx_print_issn" AS "ctx_print_issn",
-  "source"."publication_year" AS "publication_year",
-  "source"."series_name" AS "series_name",
-  "source"."publication_month" AS "publication_month",
+  "source"."citation_contributors_names" AS "citation_contributors_names",
   "source"."publication_day" AS "publication_day",
-  "source"."publication_date" AS "publication_date",
-    (
-    SELECT string_agg(
-             json_extract_string(j.value, '$.identity.name'),
-             ', '
-             ORDER BY CAST(json_extract_string(j.value, '$.sequence') AS INTEGER)
-           )
-    FROM json_each("source".entity_description__contributors_preview) AS j
-  ) AS contributors_names
+  "source"."publication_month" AS "publication_month",
+  "source"."publication_year" AS "publication_year",
+  "source"."brage_nina_handle" AS "brage_nina_handle",
+  "source"."nva_sikt_handle" AS "nva_sikt_handle",
+  "source"."series_number" AS "series_number",
+  "source"."series_name" AS "series_name",
+  "source"."entity_description__main_title" AS "entity_description__main_title"
 FROM
   (
     SELECT
       r.*,
-	  	  (
-        SELECT
-          string_agg(
-            json_extract_string(j.value, '$.identity.name'),
-            ', '
-
-		ORDER BY
-              CAST(
-                json_extract_string(j.value, '$.sequence') AS INTEGER
-              )
-          )
-        FROM
-          json_each(
-            r.entity_description__contributors_preview
-          ) AS j
-      ) AS contributors_names,
       -- top-level
-      json_extract_string(r.entity_description__reference, '$.type') AS ref_type,
+      --json_extract_string(r.entity_description__reference, '$.type') AS ref_type,
       -- publicationInstance
       json_extract_string(
         r.entity_description__reference,
@@ -91,13 +25,153 @@ FROM
         r.entity_description__reference,
         '$.publicationInstance.volume'
       ) AS volume,
-      -- pages (nested inside publicationInstance)
-      json_extract_string(
-        r.entity_description__reference,
-        '$.publicationInstance.pages.type'
-      ) AS pages_type,
-      --json_extract_string(r.entity_description__reference, '$.publicationInstance.pages.begin') AS pages_begin,
-      --json_extract_string(r.entity_description__reference, '$.publicationInstance.pages.end')   AS pages_end,
+      list_extract(
+        (
+          SELECT
+            list(
+              ai.value
+
+ORDER BY
+                ai._dlt_list_idx
+            )
+          FROM
+            read_parquet(
+              $data_s3_path + 'resources__additional_identifiers.parquet'
+            ) ai
+
+WHERE
+            ai._dlt_parent_id = r._dlt_id
+
+   AND ai.source_name = 'nva@sikt'
+        ),
+        1
+      ) AS nva_sikt_handle,
+      list_extract(
+        (
+          SELECT
+            list(
+              ai.value
+              ORDER BY
+                ai._dlt_list_idx
+            )
+          FROM
+            read_parquet(
+              $data_s3_path + 'resources__additional_identifiers.parquet'
+            ) ai
+          WHERE
+            ai._dlt_parent_id = r._dlt_id
+            AND ai.source_name = 'nva@brage'
+        ),
+        1
+      ) AS nva_brage_handle,
+      list_extract(
+        (
+          SELECT
+            list(
+              ai.value
+              ORDER BY
+                ai._dlt_list_idx
+            )
+          FROM
+            read_parquet(
+              $data_s3_path + ' resources__additional_identifiers.parquet'
+            ) ai
+          WHERE
+            ai._dlt_parent_id = r._dlt_id
+            AND ai.source_name = 'cristin@nina'
+        ),
+        1
+      ) AS cristin_nina_handle,
+      list_extract(
+        (
+          SELECT
+            list(
+              ai.value
+              ORDER BY
+                ai._dlt_list_idx
+            )
+          FROM
+            read_parquet(
+              'https://s3-int-1.nina.no/dms/nva/main/resources__additional_identifiers.parquet'
+            ) ai
+          WHERE
+            ai._dlt_parent_id = r._dlt_id
+            AND ai.source_name = 'brage@nina'
+        ),
+        1
+      ) AS brage_nina_handle,
+      list_extract(
+        (
+          SELECT
+            list(
+              ai.value
+              ORDER BY
+                ai._dlt_list_idx
+            )
+          FROM
+            read_parquet(
+              $data_s3_path + 'resources__additional_identifiers.parquet'
+            ) ai
+          WHERE
+            ai._dlt_parent_id = r._dlt_id
+            AND ai.source_name = 'nva@nnull'
+        ),
+        1
+      ) AS nva_null_handle,
+      list_extract(
+        (
+          SELECT
+            list(
+              ai.value
+              ORDER BY
+                ai._dlt_list_idx
+            )
+          FROM
+            read_parquet(
+              $data_s3_path + 'resources__additional_identifiers.parquet'
+            ) ai
+          WHERE
+            ai._dlt_parent_id = r._dlt_id
+            AND ai.source_name = 'cristin@ntnu'
+        ),
+        1
+      ) AS cristin_ntnu_handle,
+      list_extract(
+        (
+          SELECT
+            list(
+              ai.value
+              ORDER BY
+                ai._dlt_list_idx
+            )
+          FROM
+            read_parquet(
+              $data_s3_path + 'resources__additional_identifiers.parquet'
+            ) ai
+          WHERE
+            ai._dlt_parent_id = r._dlt_id
+            AND ai.source_name = 'cristin@niva'
+        ),
+        1
+      ) AS cristin_niva_handle,
+      list_extract(
+        (
+          SELECT
+            list(
+              ai.value
+              ORDER BY
+                ai._dlt_list_idx
+            )
+          FROM
+            read_parquet(
+              $data_s3_path + 'resources__additional_identifiers.parquet'
+            ) ai
+          WHERE
+            ai._dlt_parent_id = r._dlt_id
+            AND ai.source_name = 'cristin@nmbu'
+        ),
+        1
+      ) AS cristin_nmbu_handle,
       -- publicationContext
       json_extract_string(
         r.entity_description__reference,
@@ -117,8 +191,17 @@ FROM
       ) AS ctx_type,
       json_extract_string(
         r.entity_description__reference,
-        '$.publicationContext.printIssn'
+        '$.publicationContext.series.printIssn'
       ) AS ctx_print_issn,
+      json_extract_string(r.entity_description__reference, '$.doi') AS doi_url,
+      json_extract_string(
+        entity_description__reference,
+        '$.publicationContext.seriesNumber'
+      ) AS series_number,
+      json_extract_string(
+        entity_description__reference,
+        '$.publicationContext.series.onlineIssn'
+      ) AS online_issn,
       -- publication date parts (conditionally present)
       json_extract_string(r.entity_description__publication_date, '$.year') AS publication_year,
       json_extract_string(
@@ -137,14 +220,88 @@ FROM
         )
         ELSE NULL
       END AS publication_day,
+      -- authors
+      (
+        WITH contrib AS (
+          SELECT
+            CAST(
+              json_extract_string(j.value, '$.sequence') AS INTEGER
+            ) AS seq,
+            json_extract_string(j.value, '$.identity.name') AS full_name
+          FROM
+            json_each(r.entity_description__contributors_preview) AS j
+        ),
+        formatted AS (
+          SELECT
+            seq,
+            -- Surname = last token; initials = first 1 (if 1–2 given names) or first 2 (if 3+ given names)
+            list_element(parts, -1) || ', ' || array_to_string(
+              list_transform(
+                CASE
+                  -- look at 3rd given-name token (after removing surname); if missing -> keep only first given name
+                  WHEN list_element(list_slice(parts, 1, -1), 3) IS NULL THEN list_slice(list_slice(parts, 1, -1), 1, 1) -- otherwise keep first two given names
+                  ELSE list_slice(list_slice(parts, 1, -1), 1, 2)
+                END,
+                x - > substr(x, 1, 1) || '.'
+              ),
+              ''
+            ) AS name_fmt
+          FROM
+            (
+              SELECT
+                seq,
+                str_split(full_name, ' ') AS parts
+              FROM
+                contrib
+            )
+        ),
+        ord AS (
+          SELECT
+            seq,
+            name_fmt,
+            row_number() OVER (
+              ORDER BY
+                seq
+            ) AS rn,
+            count(*) OVER () AS n
+          FROM
+            formatted
+        )
+        SELECT
+          string_agg(
+            CASE
+              WHEN n = 1 THEN name_fmt
+              WHEN rn = 1 THEN name_fmt
+              WHEN rn = n THEN ' & ' || name_fmt
+              ELSE ', ' || name_fmt
+            END,
+            ''
+            ORDER BY
+              rn
+          )
+        FROM
+          ord
+      ) AS citation_contributors_names,
+      (
+        SELECT
+          string_agg(
+            json_extract_string(j.value, '$.identity.name'),
+            ', '
+            ORDER BY
+              CAST(
+                json_extract_string(j.value, '$.sequence') AS INTEGER
+              )
+          )
+        FROM
+          json_each(r.entity_description__contributors_preview) AS j
+      ) AS contributors_names,
       -- one "best effort" DATE column:
       -- - if year+month+day exist -> that exact date
       -- - if only year exists -> 1st Jan of that year (change if you prefer NULL instead)
       CASE
         WHEN json_extract_string(r.entity_description__publication_date, '$.year') IS NULL THEN NULL
         WHEN json_extract_string(r.entity_description__publication_date, '$.month') IS NOT NULL
-
-   AND json_extract_string(r.entity_description__publication_date, '$.day') IS NOT NULL THEN make_date(
+        AND json_extract_string(r.entity_description__publication_date, '$.day') IS NOT NULL THEN make_date(
           CAST(
             json_extract_string(r.entity_description__publication_date, '$.year') AS INTEGER
           ),
@@ -163,20 +320,10 @@ FROM
           1
         )
       END AS publication_date
-
     FROM
       read_parquet(
-        $data_s3_path
+        $data_s3_path + 'resources.parquet'
       ) r
   ) AS "source"
 WHERE
-  (
-    LOWER("source"."pub_instance_type") LIKE '%report%'
-  )
-  AND (
-    LOWER("source"."series_name") LIKE '%nina rapport%'
-  )
-ORDER BY
-  "source"."published_date" DESC
-LIMIT
-  100
+  LOWER("source"."online_issn") LIKE '%1504-3312%'
