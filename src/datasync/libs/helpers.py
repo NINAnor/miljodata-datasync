@@ -69,7 +69,7 @@ class ServerError(httpx.HTTPStatusError):
 
 @backoff.on_exception(
     backoff.expo,
-    (httpx.ConnectError, ServerError, PollingError),
+    (httpx.ConnectError, ServerError, PollingError, httpx.TimeoutException),
     max_tries=5,
     jitter=backoff.full_jitter,
 )
