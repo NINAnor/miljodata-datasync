@@ -1,18 +1,18 @@
--- NINA Data rapport
+-- NINA Årsmelding
+
 SELECT
-  "source"."entity_description__main_title" AS "entity_description__main_title",
   "source"."citation_contributors_names" AS "citation_contributors_names",
   "source"."publication_day" AS "publication_day",
   "source"."publication_month" AS "publication_month",
-  "source"."publication_year" AS "publication_year",
-  "source"."series_number" AS "series_number",
-  "source"."series_name" AS "series_name",
-  "source"."nva_sikt_handle" AS "nva_sikt_handle",
-  "source"."brage_nina_handle" AS "brage_nina_handle"
+  "source"."entity_description__main_title" AS "entity_description__main_title",
+  "source"."id" AS "id"
 FROM
   (
     SELECT
       r.*,
+      -- top-level
+      --json_extract_string(r.entity_description__reference, '$.type') AS ref_type,
+      -- publicationInstance
       json_extract_string(
         r.entity_description__reference,
         '$.publicationInstance.type'
@@ -27,7 +27,7 @@ FROM
             list(
               ai.value
 
-            ORDER BY
+ORDER BY
                 ai._dlt_list_idx
             )
           FROM
@@ -198,7 +198,6 @@ WHERE
         entity_description__reference,
         '$.publicationContext.series.onlineIssn'
       ) AS online_issn,
-
       -- publication date parts (conditionally present)
       json_extract_string(r.entity_description__publication_date, '$.year') AS publication_year,
       json_extract_string(
@@ -292,6 +291,9 @@ WHERE
         FROM
           json_each(r.entity_description__contributors_preview) AS j
       ) AS contributors_names,
+      -- one "best effort" DATE column:
+      -- - if year+month+day exist -> that exact date
+      -- - if only year exists -> 1st Jan of that year (change if you prefer NULL instead)
       CASE
         WHEN json_extract_string(r.entity_description__publication_date, '$.year') IS NULL THEN NULL
         WHEN json_extract_string(r.entity_description__publication_date, '$.month') IS NOT NULL
@@ -315,9 +317,9 @@ WHERE
         )
       END AS publication_date
     FROM
-      read_parquet(
-        $data_s3_path + 'resources.parquet'
-      ) r
+        read_parquet(
+            $data_s3_path + 'resources.parquet'
+        ) r
   ) AS "source"
 WHERE
-  LOWER("source"."ctx_print_issn") LIKE '%2703-9447%'
+  LOWER("source"."ctx_print_issn") LIKE '%0809-8794%'
