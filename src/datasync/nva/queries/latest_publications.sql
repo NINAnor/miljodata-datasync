@@ -30,10 +30,7 @@ FROM
               ORDER BY
                 ai._dlt_list_idx
             )
-          FROM
-            read_parquet(
-              $data_s3_path + 'resources__additional_identifiers.parquet'
-            ) ai
+          FROM additional_identifiers as ai
             WHERE
             ai._dlt_parent_id = r._dlt_id
    AND ai.source_name = 'nva@sikt'
@@ -48,10 +45,7 @@ FROM
               ORDER BY
                 ai._dlt_list_idx
             )
-          FROM
-            read_parquet(
-              $data_s3_path + 'resources__additional_identifiers.parquet'
-            ) ai
+          FROM additional_identifiers as ai
           WHERE
             ai._dlt_parent_id = r._dlt_id
             AND ai.source_name = 'nva@brage'
@@ -66,10 +60,7 @@ FROM
               ORDER BY
                 ai._dlt_list_idx
             )
-          FROM
-            read_parquet(
-              $data_s3_path + 'resources__additional_identifiers.parquet'
-            ) ai
+          FROM additional_identifiers as ai
           WHERE
             ai._dlt_parent_id = r._dlt_id
             AND ai.source_name = 'cristin@nina'
@@ -84,10 +75,7 @@ FROM
               ORDER BY
                 ai._dlt_list_idx
             )
-          FROM
-            read_parquet(
-              $data_s3_path + 'resources__additional_identifiers.parquet'
-            ) ai
+          FROM additional_identifiers as ai
           WHERE
             ai._dlt_parent_id = r._dlt_id
             AND ai.source_name = 'brage@nina'
@@ -102,10 +90,7 @@ FROM
               ORDER BY
                 ai._dlt_list_idx
             )
-          FROM
-            read_parquet(
-              $data_s3_path + 'resources__additional_identifiers.parquet'
-            ) ai
+          FROM additional_identifiers as ai
           WHERE
             ai._dlt_parent_id = r._dlt_id
             AND ai.source_name = 'nva@nnull'
@@ -120,10 +105,7 @@ FROM
               ORDER BY
                 ai._dlt_list_idx
             )
-          FROM
-            read_parquet(
-              $data_s3_path + 'resources__additional_identifiers.parquet'
-            ) ai
+          FROM additional_identifiers as ai
           WHERE
             ai._dlt_parent_id = r._dlt_id
             AND ai.source_name = 'cristin@ntnu'
@@ -138,10 +120,7 @@ FROM
               ORDER BY
                 ai._dlt_list_idx
             )
-          FROM
-            read_parquet(
-              $data_s3_path + 'resources__additional_identifiers.parquet'
-            ) ai
+          FROM additional_identifiers as ai
           WHERE
             ai._dlt_parent_id = r._dlt_id
             AND ai.source_name = 'cristin@niva'
@@ -156,10 +135,7 @@ FROM
               ORDER BY
                 ai._dlt_list_idx
             )
-          FROM
-            read_parquet(
-              $data_s3_path + 'resources__additional_identifiers.parquet'
-            ) ai
+          FROM additional_identifiers as ai
           WHERE
             ai._dlt_parent_id = r._dlt_id
             AND ai.source_name = 'cristin@nmbu'
@@ -236,7 +212,7 @@ FROM
                   WHEN list_element(list_slice(parts, 1, -1), 3) IS NULL THEN list_slice(list_slice(parts, 1, -1), 1, 1) -- otherwise keep first two given names
                   ELSE list_slice(list_slice(parts, 1, -1), 1, 2)
                 END,
-                x - > substr(x, 1, 1) || '.'
+                x -> substr(x, 1, 1) || '.'
               ),
               ''
             ) AS name_fmt
@@ -314,10 +290,7 @@ FROM
           1
         )
       END AS publication_date
-    FROM
-      read_parquet(
-        $data_s3_path + 'resources.parquet'
-      ) r
+    FROM resources AS r
   ) AS "source"
 WHERE
   (
