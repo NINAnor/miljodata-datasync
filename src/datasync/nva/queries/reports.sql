@@ -2,8 +2,6 @@
 SELECT
   "source"."identifier" AS "identifier",
   "source"."citation_contributors_names" AS "citation_contributors_names",
-  "source"."publication_day" AS "publication_day",
-  "source"."publication_month" AS "publication_month",
   "source"."publication_year" AS "publication_year",
   "source"."brage_nina_handle" AS "brage_nina_handle",
   "source"."nva_sikt_handle" AS "nva_sikt_handle",
@@ -300,3 +298,5 @@ WHERE
   ) AS "source"
 WHERE
   LOWER("source"."online_issn") LIKE '%1504-3312%'
+ORDER BY
+  publication_year DESC
