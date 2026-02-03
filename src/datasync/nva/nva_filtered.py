@@ -44,7 +44,12 @@ def create_parquet_views(
     log.info(
         f"Creating and writing parquet file to s3://{storage_s3_bucket}/{storage_s3_prefix}/{file_name}"
     )
-    con.sql(query, params={"data_s3_path": data_s3_path}).write_parquet(
+    additional_identifiers = con.read_parquet(  # noqa: F841
+        f"{data_s3_path}/resources__additional_identifiers.parquet"
+    )
+    resources = con.read_parquet(f"{data_s3_path}/resources.parquet")  # noqa: F841
+
+    con.sql(query).write_parquet(
         f"s3://{storage_s3_bucket}/{storage_s3_prefix}/{file_name}",
         compression="zstd",
         overwrite=True,
