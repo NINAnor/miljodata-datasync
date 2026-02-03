@@ -2,8 +2,6 @@
 SELECT
   "source"."entity_description__main_title" AS "entity_description__main_title",
   "source"."citation_contributors_names" AS "citation_contributors_names",
-  "source"."publication_day" AS "publication_day",
-  "source"."publication_month" AS "publication_month",
   "source"."publication_year" AS "publication_year",
   "source"."series_number" AS "series_number",
   "source"."series_name" AS "series_name",
@@ -292,3 +290,5 @@ FROM
   ) AS "source"
 WHERE
   LOWER("source"."ctx_print_issn") LIKE '%2703-9447%'
+ORDER BY
+	publication_year DESC

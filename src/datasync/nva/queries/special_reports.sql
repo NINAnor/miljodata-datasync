@@ -3,6 +3,7 @@
 SELECT
   "source"."citation_contributors_names" AS "citation_contributors_names",
   "source"."entity_description__main_title" AS "entity_description__main_title",
+  "source"."publication_year" AS "publication_year",
   "source"."series_number" AS "series_number",
   "source"."series_name" AS "series_name",
   "source"."id" AS "id",
@@ -304,3 +305,5 @@ WHERE
     OR (
     LOWER("source"."ctx_print_issn") LIKE '%0804-421x%'
   )
+ORDER BY
+  publication_year DESC

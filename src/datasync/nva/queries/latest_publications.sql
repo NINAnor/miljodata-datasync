@@ -318,3 +318,4 @@ WHERE
   )
 ORDER BY
   "source"."publication_date" DESC
+LIMIT 100

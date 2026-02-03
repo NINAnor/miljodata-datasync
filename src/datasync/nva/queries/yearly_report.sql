@@ -2,8 +2,7 @@
 
 SELECT
   "source"."citation_contributors_names" AS "citation_contributors_names",
-  "source"."publication_day" AS "publication_day",
-  "source"."publication_month" AS "publication_month",
+  "source"."publication_year" AS "publication_year",
   "source"."entity_description__main_title" AS "entity_description__main_title",
   "source"."id" AS "id"
 FROM
@@ -293,3 +292,5 @@ FROM
   ) AS "source"
 WHERE
   LOWER("source"."ctx_print_issn") LIKE '%0809-8794%'
+ORDER BY
+	publication_year DESC
