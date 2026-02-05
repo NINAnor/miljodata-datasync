@@ -44,6 +44,10 @@ def generate_csw_metadata(
     limit: int | None = typer.Option(
         default=None,
     ),
+    search: str | None = typer.Option(
+        default=None,
+        help="Filter resources by title using a LIKE expression",
+    ),
 ):
     s3 = s3fs.S3FileSystem(
         endpoint_url=endpoint,
@@ -75,7 +79,14 @@ def generate_csw_metadata(
             from vectors select * replace (ST_GEomFromHEXWKB(extent) as extent),
                 case when extent is null then 'table' else 'vector' end as type
     """)
-    log.debug(resources)
+    log.debug(
+        "pre_filter", resources=resources.select("title"), columns=resources.columns
+    )
+
+    if search:
+        resources = resources.filter(f"title LIKE '%{search}%'")
+
+    log.debug("found", resources=resources)
 
     # --- General metadata --- #
 
@@ -359,6 +370,7 @@ def generate_csw_metadata(
         metadata = iso.write(mcf)
         log.debug("metadata", metadata=metadata, original=mcf)
         try:
+            log.info("Publishing CSW record", id=item[0])
             publish_csw_record(publish_url, metadata, item[0])
         except ClientError as e:
             log.error(e)
@@ -375,6 +387,10 @@ def generate_csw_metadata(
 def generate_geoapi_config(
     base_url: str = DMS_DATASETS_BASE,
     publish_url=DMS_GEOAPI_PUBLISH_URL,
+    search: str | None = typer.Option(
+        default=None,
+        help="Filter resources by title using a LIKE expression",
+    ),
 ):
     conn = duckdb.connect()
     conn.install_extension("spatial")
@@ -394,6 +410,24 @@ def generate_geoapi_config(
     datatables = conn.read_parquet(base_url + "datasets_datatable.parquet").select(
         "* replace (ST_GEomFromHEXWKB(extent) as extent)"
     )  # noqa: F841
+
+    # Apply search filter early
+    if search:
+        rasters = (
+            rasters.join(datasets.set_alias("d"), condition="dataset_id = d.id")
+            .filter(f"d.title LIKE '%{search}%' or title LIKE '%{search}%'")
+            .select("rasters.*")
+        )
+        vectors = (
+            vectors.join(datasets.set_alias("d"), condition="dataset_id = d.id")
+            .filter(f"d.title LIKE '%{search}%' or title LIKE '%{search}%'")
+            .select("vectors.*")
+        )
+        # Also filter datatables based on filtered vectors
+        datatables = datatables.join(
+            vectors.set_alias("v"), condition="resource_id = v.id"
+        ).select("datatables.*")
+
     log.debug(vectors)
     log.debug(datatables)
 
