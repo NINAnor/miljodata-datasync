@@ -1,4 +1,6 @@
+import fsspec
 import typer
+import xmlschema
 
 from ..settings import log
 from .csw import eml_write_record
@@ -54,3 +56,31 @@ def run(
         index += 1
         if limit and limit < index:
             break
+
+
+def validate_iso(file: str):
+    """Validate XML against ISO 19115 schema with both gmd and gmx namespaces."""
+    with fsspec.open(file, "r") as f:
+        content = f.read()
+        log.debug("validating xml", file=file, content=content)
+        # Load schemas from URLs
+        log.debug("loading ISO 19115 gmd and gmx schemas")
+        schemas = [
+            "http://www.isotc211.org/2005/gmd/gmd.xsd",
+            "http://www.isotc211.org/2005/gmx/gmx.xsd",
+        ]
+        schema = xmlschema.XMLSchema(schemas)
+
+        # Validate the XML document
+        if schema.is_valid(content):
+            log.info("XML validation successful", file=file)
+        else:
+            for e in schema.iter_errors(content):
+                log.error(
+                    str(e),
+                    file=file,
+                )
+            raise ValueError("XML validation failed")
+
+
+app.command(help="Validate an XML file against ISO 19115 schema")(validate_iso)
