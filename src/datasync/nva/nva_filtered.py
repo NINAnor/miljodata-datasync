@@ -1,6 +1,8 @@
 from importlib.resources import files
 
 import duckdb
+import pandas as pd
+import tabulate
 import typer
 
 from ..settings import (
@@ -87,17 +89,152 @@ def filter_data(
         );
     """).fetchall()
 
-    for query_file in files("datasync.nva.queries").iterdir():
-        if query_file.is_file() and query_file.name.endswith(".sql"):
-            file_name = f"{query_file.name[:-4]}.parquet"
-            create_parquet_views(
-                con,
-                file_name=file_name,
-                query=query_file.read_text(),
-                storage_s3_bucket=storage_bucket,
-                storage_s3_prefix=storage_prefix,
-                data_s3_path=data_s3_path,
+    additional_identifiers = con.read_parquet(  # noqa: F841
+        f"{data_s3_path}/resources__additional_identifiers.parquet"
+    )
+    resources = con.read_parquet(f"{data_s3_path}/resources.parquet")  # noqa: F841
+    filter_query = files("datasync.nva.queries").joinpath("filter_cols.sql")
+
+    filter_resources = con.sql(filter_query.read_text())  # noqa: F841
+
+    # NINA Datarapport
+    data_reports = con.sql("""
+    SELECT *
+    FROM filter_resources
+    WHERE ctx_print_issn LIKE '%2703-9447%'
+    ORDER BY publication_year DESC
+    """)
+    data_reports_count = (
+        result[0]
+        if (result := con.sql("SELECT COUNT(*) FROM data_reports").fetchone())
+        else 0
+    )
+
+    data_reports.write_parquet(
+        f"s3://{storage_bucket}/{storage_prefix}/data_reports.parquet",
+        compression="zstd",
+        overwrite=True,
+    )
+
+    # NINA Temahefte
+    special_reports = con.sql("""
+    SELECT *
+    FROM filter_resources
+    WHERE
+        LOWER(ctx_print_issn) LIKE '%2535-6526%' OR
+        LOWER(ctx_print_issn) LIKE '%0804-421x%'
+    ORDER BY publication_year DESC
+    """)
+    special_reports_count = (
+        result[0]
+        if (result := con.sql("SELECT COUNT(*) FROM special_reports").fetchone())
+        else 0
+    )
+    special_reports.write_parquet(
+        f"s3://{storage_bucket}/{storage_prefix}/special_reports.parquet",
+        compression="zstd",
+        overwrite=True,
+    )
+
+    # NINA Rapporter
+    reports = con.sql("""
+    SELECT *
+    FROM filter_resources
+    WHERE online_issn LIKE '%1504-3312%'
+    ORDER BY publication_year DESC""")
+    reports_count = (
+        result[0]
+        if (result := con.sql("SELECT COUNT(*) FROM reports").fetchone())
+        else 0
+    )
+    reports.write_parquet(
+        f"s3://{storage_bucket}/{storage_prefix}/reports.parquet",
+        compression="zstd",
+        overwrite=True,
+    )
+
+    # NINA Årsmelding
+    yearly_reports = con.sql("""
+    SELECT *
+    FROM filter_resources
+    WHERE ctx_print_issn LIKE '%0809-8794%'
+    ORDER BY publication_year DESC""")
+    yearly_reports_count = (
+        result[0]
+        if (result := con.sql("SELECT COUNT(*) FROM yearly_reports").fetchone())
+        else 0
+    )
+    yearly_reports.write_parquet(
+        f"s3://{storage_bucket}/{storage_prefix}/yearly_reports.parquet",
+        compression="zstd",
+        overwrite=True,
+    )
+
+    # Nylige publikasjoner
+    latest_publications = con.sql("""
+    SELECT *
+    FROM filter_resources
+    WHERE
+        (
+            (
+            LOWER(pub_instance_type) LIKE '%academicarticle%'
             )
+
+            OR (
+            LOWER(pub_instance_type) LIKE '%academicliteraturereview%'
+            )
+            OR (
+            LOWER(pub_instance_type) LIKE '%academicmonograph%'
+            )
+            OR (
+            LOWER(pub_instance_type) LIKE '%reportresearch%'
+            )
+            OR (
+            LOWER(pub_instance_type) LIKE '%academicchapter%'
+            )
+        )
+        AND (doi_url IS NOT NULL)
+        AND (
+            (doi_url <> '')
+            OR (doi_url IS NULL)
+        )
+    ORDER BY
+    publication_date DESC
+    LIMIT 100""")
+    latest_publications_count = (
+        result[0]
+        if (result := con.sql("SELECT COUNT(*) FROM latest_publications").fetchone())
+        else 0
+    )
+    latest_publications.write_parquet(
+        f"s3://{storage_bucket}/{storage_prefix}/latest_publications.parquet",
+        compression="zstd",
+        overwrite=True,
+    )
+
+    counts_df = pd.DataFrame(
+        {
+            "report_type": [
+                "NINA Datarapport",
+                "NINA Temahefte",
+                "NINA Rapporter",
+                "NINA Årsmelding",
+                "Nylige publikasjoner",
+            ],
+            "count": [
+                data_reports_count,
+                special_reports_count,
+                reports_count,
+                yearly_reports_count,
+                latest_publications_count,
+            ],
+        }
+    )
+
+    table_output = tabulate.tabulate(
+        counts_df, headers="keys", tablefmt="psql", showindex=False
+    )
+    log.info(f"\n{table_output}")
 
     con.close()
 
