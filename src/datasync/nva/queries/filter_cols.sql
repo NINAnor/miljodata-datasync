@@ -178,53 +178,87 @@ AND ai.source_name = 'nva@sikt'
     )
     ELSE NULL
     END AS publication_day,
-    -- authors
+    -- authors Claude helped with formatting of the names
     (
     WITH contrib AS (
         SELECT
-        CAST(
-            json_extract_string(j.value, '$.sequence') AS INTEGER
-        ) AS seq,
+        CAST(json_extract_string(j.value, '$.sequence') AS INTEGER) AS seq,
         json_extract_string(j.value, '$.identity.name') AS full_name
-        FROM
-        json_each(r.entity_description__contributors_preview) AS j
+        FROM json_each(r.entity_description__contributors_preview) AS j
     ),
+
+    parts AS (
+        SELECT
+        seq,
+        str_split(full_name, ' ') AS p
+        FROM contrib
+    ),
+
+    -- Find the first position (index) of a surname particle like "van", "der", "de", ...
+    particle AS (
+        SELECT
+        seq,
+        p,
+        (
+            SELECT MIN(idx)
+            FROM unnest(p) WITH ORDINALITY AS u(tok, idx)
+            WHERE lower(tok) IN ('van','von','der','den','de','del','da','di','la','le','du','ter','ten')
+        ) AS particle_pos
+        FROM parts
+    ),
+
     formatted AS (
         SELECT
         seq,
-        -- Surname = last token; initials = first 1 (if 1–2 given names) or first 2 (if 3+ given names)
-        list_element(parts, -1) || ', ' || array_to_string(
-            list_transform(
+
+        -- Build surname:
+        -- if we find a particle, surname = from particle_pos .. end (e.g. "van der Kooij")
+        -- else surname = last token
+        (
             CASE
-                -- look at 3rd given-name token (after removing surname); if missing -> keep only first given name
-                WHEN list_element(list_slice(parts, 1, -1), 3) IS NULL THEN list_slice(list_slice(parts, 1, -1), 1, 1) -- otherwise keep first two given names
-                ELSE list_slice(list_slice(parts, 1, -1), 1, 2)
-            END,
-            x -> substr(x, 1, 1) || '.'
+            WHEN particle_pos IS NOT NULL
+                THEN array_to_string(list_slice(p, particle_pos, 999999), ' ')
+            ELSE list_element(p, -1)
+            END
+            || ', '
+            ||
+            -- Build initials from given-name tokens:
+            array_to_string(
+            list_transform(
+                CASE
+                WHEN particle_pos IS NOT NULL THEN
+                    -- given names are tokens before particle_pos
+                    CASE
+                    WHEN list_element(list_slice(p, 1, particle_pos - 1), 3) IS NULL
+                        THEN list_slice(p, 1, 1)                              -- only first initial
+                    ELSE list_slice(p, 1, 2)                                 -- first two initials
+                    END
+                ELSE
+                    -- given names are all tokens except the last (surname)
+                    CASE
+                    WHEN list_element(list_slice(p, 1, -1), 3) IS NULL
+                        THEN list_slice(list_slice(p, 1, -1), 1, 1)
+                    ELSE list_slice(list_slice(p, 1, -1), 1, 2)
+                    END
+                END,
+                x -> substr(x, 1, 1) || '.'
             ),
             ''
+            )
         ) AS name_fmt
-        FROM
-        (
-            SELECT
-            seq,
-            str_split(full_name, ' ') AS parts
-            FROM
-            contrib
-        )
+
+        FROM particle
     ),
+
     ord AS (
         SELECT
         seq,
         name_fmt,
-        row_number() OVER (
-            ORDER BY
-            seq
-        ) AS rn,
+        row_number() OVER (ORDER BY seq) AS rn,
         count(*) OVER () AS n
-        FROM
-        formatted
+        FROM formatted
     )
+
     SELECT
         string_agg(
         CASE
@@ -233,13 +267,11 @@ AND ai.source_name = 'nva@sikt'
             WHEN rn = n THEN ' & ' || name_fmt
             ELSE ', ' || name_fmt
         END,
-        ''
-        ORDER BY
-            rn
+        '' ORDER BY rn
         )
-    FROM
-        ord
+    FROM ord
     ) AS citation_contributors_names,
+
     (
     SELECT
         string_agg(

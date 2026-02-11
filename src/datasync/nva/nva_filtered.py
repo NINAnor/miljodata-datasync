@@ -1,8 +1,6 @@
 from importlib.resources import files
 
 import duckdb
-import pandas as pd
-import tabulate
 import typer
 
 from ..settings import (
@@ -212,29 +210,14 @@ def filter_data(
         overwrite=True,
     )
 
-    counts_df = pd.DataFrame(
-        {
-            "report_type": [
-                "NINA Datarapport",
-                "NINA Temahefte",
-                "NINA Rapporter",
-                "NINA Årsmelding",
-                "Nylige publikasjoner",
-            ],
-            "count": [
-                data_reports_count,
-                special_reports_count,
-                reports_count,
-                yearly_reports_count,
-                latest_publications_count,
-            ],
-        }
+    log.info(
+        "summary",
+        data_reports_count=data_reports_count,
+        special_reports_count=special_reports_count,
+        reports_count=reports_count,
+        yearly_reports_count=yearly_reports_count,
+        latest_publications_count=latest_publications_count,
     )
-
-    table_output = tabulate.tabulate(
-        counts_df, headers="keys", tablefmt="psql", showindex=False
-    )
-    log.info(f"\n{table_output}")
 
     con.close()
 
