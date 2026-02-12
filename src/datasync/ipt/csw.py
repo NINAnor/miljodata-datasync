@@ -38,7 +38,7 @@ def eml_write_record(ds, text, skip):
         "description": "DarwinCore archive",
         "type": "WWW:LINK",
         "function": "information",
-        "format": "Parquet",
+        "format": "Zip",
         "url": f"{IPT_URL}/archive.do?r={ds['id']}",  # noqa: E501
     }
 
@@ -64,31 +64,33 @@ def eml_write_record(ds, text, skip):
     log.debug("using mcf", mcf=metadata)
 
     xml = iso.write(metadata)
-    parser = etree.XMLParser(remove_blank_text=True)
 
-    root = etree.fromstring(xml, parser)  # noqa: S320  # ty:ignore[no-matching-overload]
-    tree = etree.ElementTree(root)
-    ns = {k: v for k, v in root.nsmap.items() if k is not None}
+    # # in order to publish on GeoNorge we need to have the pointOfContact with role owner  # noqa: E501
+    # # this can only be achieved by xml manipulation
 
-    # in order to publish on GeoNorge we need to have the pointOfContact with role owner
-    # this can only be achieved by xml manipulation
-    role_nodes = root.xpath(
-        "//gmd:pointOfContact//gmd:CI_RoleCode",
-        namespaces=ns,
-    )
-    for role in role_nodes:
-        log.debug("found role", role=role.text)
-        role.text = "owner"
-        role.set("codeListValue", "owner")
+    # parser = etree.XMLParser(remove_blank_text=True)
 
-    xml_bytes = etree.tostring(
-        tree, encoding="UTF-8", xml_declaration=True, pretty_print=True
-    )
+    # root = etree.fromstring(xml, parser)  # noqa: S320
+    # tree = etree.ElementTree(root)
+    # ns = {k: v for k, v in root.nsmap.items() if k is not None}
+
+    # role_nodes = root.xpath(
+    #     "//gmd:pointOfContact//gmd:CI_RoleCode",
+    #     namespaces=ns,
+    # )
+    # for role in role_nodes:
+    #     log.debug("found role", role=role.text)
+    #     role.text = "owner"
+    #     role.set("codeListValue", "owner")
+
+    # xml_bytes = etree.tostring(
+    #     tree, encoding="UTF-8", xml_declaration=True, pretty_print=True
+    # )
 
     with s3.open(
-        f"{S3_BUCKET}{RESOURCES_PREFIX}{ds['id']}.xml", mode="wb"
+        f"{S3_BUCKET}{RESOURCES_PREFIX}{ds['id']}.xml", mode="w"
     ) as metadata_file:
-        metadata_file.write(xml_bytes)
+        metadata_file.write(xml)
 
     if not skip:
         publish_csw_record(OGC_RECORDS_PUBLISH_URL, xml, identifier=identifier)
