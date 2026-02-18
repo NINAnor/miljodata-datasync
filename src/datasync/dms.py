@@ -1,3 +1,5 @@
+import json
+
 import duckdb
 import orjson
 import s3fs
@@ -563,6 +565,61 @@ def generate_geoapi_config(
 
     for e in geo_vector.to_arrow_table().to_pylist():
         publish_pygeoapi_resource(publish_url, e)
+
+
+@app.command()
+def generate_maps_json(
+    base_url: str = DMS_DATASETS_BASE,
+    access_key=DMS_ACCESS_KEY,
+    secret_key=DMS_SECRET_KEY,
+    endpoint=DMS_AWS_ENDPOINT,
+    where: str = typer.Option(
+        default="1=1",
+        help="Provide an additional SQL filter",
+    ),
+    bucket: str = typer.Option(
+        DMS_BUCKET, help="S3 bucket for output (e.g., 'my-bucket')"
+    ),
+    output: str = typer.Option(
+        "/dms/maps/maps.json", help="S3 key path for output JSON file"
+    ),
+):
+    """
+    Generate a maps.json file from map resources in the DMS parquet files.
+    The output follows the format used by the NINA map-editor.
+    The URL for each map is read from the uri field of the resource.
+    The file is written to S3 as a publicly accessible file.
+    """
+    conn = duckdb.connect()
+
+    # Read map resources from parquet and filter for nina maps
+    maps_data = (
+        conn.read_parquet(base_url + "datasets_mapresource.parquet")
+        .filter("map_type = 'nina'")
+        .filter(where)
+        .select("id, title, COALESCE(description, '') as description, uri as url")
+        .order("title")
+        .to_arrow_table()
+        .to_pylist()
+    )
+
+    output_data = {
+        "maps": maps_data,
+        "icon": "https://s3-ext-1.nina.no/dms/maps/main/logo.png",
+    }
+
+    # Write the output JSON file to S3
+    endpoint_url = (
+        f"https://{endpoint}" if not endpoint.startswith("https://") else endpoint
+    )
+    s3 = s3fs.S3FileSystem(
+        endpoint_url=endpoint_url,
+        secret=secret_key,
+        key=access_key,
+    )
+
+    with s3.open(f"{bucket}{output}", "w") as f:
+        json.dump(output_data, f, indent=4)
 
 
 if __name__ == "__main__":
