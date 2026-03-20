@@ -1,6 +1,7 @@
 import datetime
 
 import dlt
+import duckdb
 import typer
 from dlt.destinations.impl.filesystem.factory import filesystem
 from dlt.sources.credentials import AwsCredentials
@@ -198,6 +199,29 @@ def run(
 
     log.info("NVA data sync completed")
     log.info(f"Data available at: {endpoint_url}/{bucket}/{prefix}")
+
+    con = duckdb.connect()
+    con.execute("INSTALL httpfs;")
+    con.execute("LOAD httpfs;")
+    con.execute(f"""
+        CREATE OR REPLACE SECRET (
+            TYPE S3,
+            KEY_ID '{access_key}',
+            SECRET '{secret_key}',
+            ENDPOINT '{endpoint_url.replace("https://", "").replace("http://", "")}',
+            REGION '{region}',
+            URL_STYLE 'path'
+        );
+    """)
+
+    timestamp = datetime.datetime.now().isoformat()
+    con.execute(f"""
+        COPY (SELECT '{timestamp}' as last_successful_run)
+        TO 's3://{bucket}/{prefix}/last_successful_run.parquet'
+        (FORMAT PARQUET, COMPRESSION ZSTD)
+    """)
+    con.close()
+    log.info(f"Last successful run timestamp written: {timestamp}")
 
 
 if __name__ == "__main__":
