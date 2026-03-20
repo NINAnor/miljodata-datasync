@@ -1,3 +1,4 @@
+import datetime
 from importlib.resources import files
 
 import duckdb
@@ -218,6 +219,15 @@ def filter_data(
         yearly_reports_count=yearly_reports_count,
         latest_publications_count=latest_publications_count,
     )
+
+    # write last successful run timestamp to S3
+    timestamp = datetime.datetime.now().isoformat()
+    con.execute(f"""
+        COPY (SELECT '{timestamp}' as last_successful_run)
+        TO 's3://{storage_bucket}/{storage_prefix}/last_successful_run.parquet'
+        (FORMAT PARQUET, COMPRESSION ZSTD)
+    """)
+    log.info(f"Last successful run timestamp written: {timestamp}")
 
     con.close()
 
