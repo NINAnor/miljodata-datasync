@@ -17,11 +17,6 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
-          fetch-depth: 0
-
-      - name: Fetch base branch for PR
-        if: github.event_name == 'pull_request'
-        run: git fetch origin ${{ github.event.pull_request.base.sha }}
 
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
@@ -32,14 +27,5 @@ jobs:
       - name: Install deptry
         run: uv tool install deptry
 
-      - name: Run pre-commit (pull request)
-        if: github.event_name == 'pull_request'
+      - name: Run pre-commit
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
-        with:
-          extra_args: --from-ref ${{ github.event.pull_request.base.sha }} --to-ref HEAD
-
-      - name: Run pre-commit (push)
-        if: github.event_name == 'push'
-        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
-        with:
-          extra_args: --from-ref ${{ github.event.before }} --to-ref HEAD
