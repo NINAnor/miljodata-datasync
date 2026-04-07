@@ -67,6 +67,9 @@ def filter_data(
     storage_prefix: str = NVA_FILTER_STORAGE_PREFIX,
     storage_url_style: str = "path",
 ):
+    """
+    The parquet files are being used to display publications on the NINA website.
+    """
     log.info("Filtering NVA data and exporting to parquet files on S3 Bucket")
     log.info(
         f"Data will be available at: {storage_s3_path}/{storage_bucket}/"
@@ -115,6 +118,12 @@ def filter_data(
         overwrite=True,
     )
 
+    log.info(
+        "NINA Datarapport filtered and written to parquet",
+        count=data_reports_count,
+        where=f"s3://{storage_bucket}/{storage_prefix}/data_reports.parquet",
+    )
+
     # NINA Temahefte
     special_reports = con.sql("""
     SELECT *
@@ -135,6 +144,12 @@ def filter_data(
         overwrite=True,
     )
 
+    log.info(
+        "NINA Temahefte filtered and written to parquet",
+        count=special_reports_count,
+        where=f"s3://{storage_bucket}/{storage_prefix}/special_reports.parquet",
+    )
+
     # NINA Rapporter
     reports = con.sql("""
     SELECT *
@@ -150,6 +165,12 @@ def filter_data(
         f"s3://{storage_bucket}/{storage_prefix}/reports.parquet",
         compression="zstd",
         overwrite=True,
+    )
+
+    log.info(
+        "NINA Rapporter filtered and written to parquet",
+        count=reports_count,
+        where=f"s3://{storage_bucket}/{storage_prefix}/reports.parquet",
     )
 
     # NINA Årsmelding
@@ -169,7 +190,13 @@ def filter_data(
         overwrite=True,
     )
 
-    # Nylige publikasjoner
+    log.info(
+        "NINA Årsmelding filtered and written to parquet",
+        count=yearly_reports_count,
+        where=f"s3://{storage_bucket}/{storage_prefix}/yearly_reports.parquet",
+    )
+
+    # Nylige publikasjoner inkludert NINA-rapporter
     latest_publications = con.sql("""
     SELECT *
     FROM filter_resources
@@ -191,11 +218,9 @@ def filter_data(
             OR (
             LOWER(pub_instance_type) LIKE '%academicchapter%'
             )
-        )
-        AND (doi_url IS NOT NULL)
-        AND (
-            (doi_url <> '')
-            OR (doi_url IS NULL)
+            OR (
+            online_issn LIKE '%1504-3312%'
+            )
         )
     ORDER BY
     publication_date DESC
@@ -212,12 +237,9 @@ def filter_data(
     )
 
     log.info(
-        "summary",
-        data_reports_count=data_reports_count,
-        special_reports_count=special_reports_count,
-        reports_count=reports_count,
-        yearly_reports_count=yearly_reports_count,
-        latest_publications_count=latest_publications_count,
+        "Nylige publikasjoner inkludert NINA-rapporter filtered and written to parquet",
+        count=latest_publications_count,
+        where=f"s3://{storage_bucket}/{storage_prefix}/latest_publications.parquet",
     )
 
     # write last successful run timestamp to S3
