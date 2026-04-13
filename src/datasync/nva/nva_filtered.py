@@ -97,7 +97,20 @@ def filter_data(
     resources = con.read_parquet(f"{data_s3_path}/resources.parquet")  # noqa: F841
     filter_query = files("datasync.nva.queries").joinpath("filter_cols.sql")
 
-    filter_resources = con.sql(filter_query.read_text())  # noqa: F841
+    # fix duplication of publication
+    filter_resources_raw = con.sql(filter_query.read_text())  # noqa: F841
+    filter_resources = con.sql("""
+        SELECT * FROM (
+            SELECT
+                *,
+                ROW_NUMBER() OVER (
+                    PARTITION BY identifier
+                    ORDER BY modified_date DESC
+                ) as rn
+            FROM filter_resources_raw
+        )
+        WHERE rn = 1
+    """)  # noqa: F841
 
     # NINA Datarapport
     data_reports = con.sql("""
