@@ -223,7 +223,8 @@ def filter_data(
             )
         )
     ORDER BY
-    publication_date DESC
+    publication_date DESC,
+    entity_description__main_title ASC
     LIMIT 100""")
     latest_publications_count = (
         result[0]
