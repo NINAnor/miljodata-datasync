@@ -214,7 +214,8 @@ def filter_data(
     SELECT *
     FROM filter_resources
     WHERE
-        (
+        publication_date <= CURRENT_DATE
+        AND (
             (
             LOWER(pub_instance_type) LIKE '%academicarticle%'
             )
