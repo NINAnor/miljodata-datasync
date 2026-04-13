@@ -232,14 +232,11 @@ def filter_data(
             OR (
             LOWER(pub_instance_type) LIKE '%academicchapter%'
             )
-            OR (
-            online_issn LIKE '%1504-3312%'
-            )
         )
     ORDER BY
     publication_date DESC,
     entity_description__main_title ASC
-    LIMIT 100""")
+    """)
     latest_publications_count = (
         result[0]
         if (result := con.sql("SELECT COUNT(*) FROM latest_publications").fetchone())
