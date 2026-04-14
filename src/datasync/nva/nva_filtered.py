@@ -114,9 +114,8 @@ def filter_data(
 
     # NINA Datarapport
     data_reports = con.sql("""
-    SELECT *
     FROM filter_resources
-    WHERE ctx_print_issn LIKE '%2703-9447%'
+    WHERE ctx_print_issn = '2703-9447'
     ORDER BY publication_year DESC
     """)
     data_reports_count = (
@@ -139,11 +138,8 @@ def filter_data(
 
     # NINA Temahefte
     special_reports = con.sql("""
-    SELECT *
     FROM filter_resources
-    WHERE
-        LOWER(ctx_print_issn) LIKE '%2535-6526%' OR
-        LOWER(ctx_print_issn) LIKE '%0804-421x%'
+    WHERE ctx_print_issn IN ('2535-6526','0804-421X')
     ORDER BY publication_year DESC
     """)
     special_reports_count = (
@@ -165,10 +161,10 @@ def filter_data(
 
     # NINA Rapporter
     reports = con.sql("""
-    SELECT *
     FROM filter_resources
-    WHERE online_issn LIKE '%1504-3312%'
-    ORDER BY publication_year DESC""")
+    WHERE online_issn = '1504-3312'
+    ORDER BY publication_year DESC
+    """)
     reports_count = (
         result[0]
         if (result := con.sql("SELECT COUNT(*) FROM reports").fetchone())
@@ -188,10 +184,10 @@ def filter_data(
 
     # NINA Årsmelding
     yearly_reports = con.sql("""
-    SELECT *
     FROM filter_resources
-    WHERE ctx_print_issn LIKE '%0809-8794%'
-    ORDER BY publication_year DESC""")
+    WHERE ctx_print_issn = '0809-8794'
+    ORDER BY publication_year DESC
+    """)
     yearly_reports_count = (
         result[0]
         if (result := con.sql("SELECT COUNT(*) FROM yearly_reports").fetchone())
@@ -210,29 +206,21 @@ def filter_data(
     )
 
     # Nylige publikasjoner inkludert NINA-rapporter
+    # 2703-9447 - NINA Datarapport
+    # 1504-3312 - NINA Rapporter
+    # 2535-6526 - NINA Temahefte
+    # 0804-421X - NINA Temahefte
     latest_publications = con.sql("""
-    SELECT *
     FROM filter_resources
     WHERE
         publication_date <= CURRENT_DATE
-        AND (
-            (
-            LOWER(pub_instance_type) LIKE '%academicarticle%'
+        AND
+            LOWER(pub_instance_type) IN (
+                'academicarticle', 'academicliteraturereview',
+                'academicmonograph', 'academicchapter'
             )
-
-            OR (
-            LOWER(pub_instance_type) LIKE '%academicliteraturereview%'
-            )
-            OR (
-            LOWER(pub_instance_type) LIKE '%academicmonograph%'
-            )
-            OR (
-            LOWER(pub_instance_type) LIKE '%reportresearch%'
-            )
-            OR (
-            LOWER(pub_instance_type) LIKE '%academicchapter%'
-            )
-        )
+            OR online_issn = '1504-3312'
+            OR ctx_print_issn IN ('2703-9447', '2535-6526', '0804-421X')
     ORDER BY
     publication_date DESC,
     entity_description__main_title ASC
