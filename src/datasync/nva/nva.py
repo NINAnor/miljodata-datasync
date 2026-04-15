@@ -95,6 +95,7 @@ def nva(
             get_resources(client, institution_code),
             name="resources",
             write_disposition="replace",
+            primary_key="identifier",
             max_table_nesting=1,
         )
 
