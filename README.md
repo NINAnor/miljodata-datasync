@@ -47,7 +47,7 @@ uvx --from . datasync
 ```
 
 ### Development
-Just run `uv run main.py` and you are good to go!
+Just run `uv run datasync --help` and see what you can do.
 
 ### Update from template
 To update your project with the latest changes from the template, run:
