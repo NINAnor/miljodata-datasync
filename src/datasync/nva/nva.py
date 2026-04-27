@@ -1,29 +1,19 @@
 import datetime
 
 import dlt
-import duckdb
 import typer
-from dlt.destinations.impl.filesystem.factory import filesystem
-from dlt.sources.credentials import AwsCredentials
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
-from ..settings import (
-    env,
-    log,
+from ..settings import env, log
+from .utils import (
+    create_pipeline,
+    create_s3_credentials,
+    setup_duckdb_s3_connection,
+    write_timestamp,
 )
 
-NVA_BASE_URL = env("NVA_BASE_URL", default="https://api.nva.unit.no/")
 NVA_DUCKDB_NAME = env("NVA_DUCKDB_FILE_NAME", default="nva_sync")
-NVA_INSTITUTION_CODE = env("NVA_INSTITUTION_CODE", default="7511.0.0.0")
-
-NVA_ACCESS_KEY = env("NVA_ACCESS_KEY", default="")
-NVA_SECRET_KEY = env("NVA_SECRET_KEY", default="")
-NVA_ENDPOINT = env("NVA_ENDPOINT", default="")
-NVA_BUCKET = env("NVA_BUCKET", default="")
-
-NVA_PREFIX = env("NVA_PREFIX", default="nva")
-NVA_REGION = env("NVA_REGION", default="us-east-1")
 
 app = typer.Typer(help="Export NVA APIs to Parquet on a S3 Bucket")
 
@@ -76,8 +66,8 @@ def get_resources(client: RESTClient, institution_code: str):
 
 @dlt.source()
 def nva(
-    base_url: str = NVA_BASE_URL,
-    institution_code: str = NVA_INSTITUTION_CODE,
+    base_url,
+    institution_code,
     resources: bool = False,
     projects: bool = False,
     persons: bool = False,
@@ -95,7 +85,7 @@ def nva(
             get_resources(client, institution_code),
             name="resources",
             write_disposition="replace",
-            primary_key="identifier",
+            primary_key="id",
             max_table_nesting=1,
         )
 
@@ -104,6 +94,7 @@ def nva(
             get_projects(client, institution_code),
             name="projects",
             write_disposition="replace",
+            primary_key="id",
             max_table_nesting=1,
         )
 
@@ -112,6 +103,7 @@ def nva(
             get_persons(client, institution_code),
             name="persons",
             write_disposition="replace",
+            primary_key="id",
             max_table_nesting=1,
         )
     if categories:
@@ -119,6 +111,7 @@ def nva(
             get_categories(client),
             name="categories",
             write_disposition="replace",
+            primary_key="_dlt_id",
             max_table_nesting=1,
         )
 
@@ -126,6 +119,7 @@ def nva(
         yield dlt.resource(
             get_funding_sources(client),
             name="funding_sources",
+            primary_key="identifier",
             write_disposition="replace",
             max_table_nesting=1,
         )
@@ -140,46 +134,62 @@ def run(
     persons: bool = False,
     categories: bool = False,
     funding_sources: bool = False,
-    base_url: str = NVA_BASE_URL,
+    base_url: str = typer.Option(
+        default="https://api.nva.unit.no/",
+        envvar="NVA_BASE_URL",
+        help="Base URL for the NVA API",
+    ),
     duckdb_name: str = NVA_DUCKDB_NAME,
-    institution_code: str = NVA_INSTITUTION_CODE,
-    endpoint_url: str = NVA_ENDPOINT,
-    access_key: str = NVA_ACCESS_KEY,
-    secret_key: str = NVA_SECRET_KEY,
-    bucket: str = NVA_BUCKET,
-    prefix: str = NVA_PREFIX,
-    region: str = NVA_REGION,
+    institution_code: str = typer.Option(
+        "7511.0.0.0", envvar="NVA_INSTITUTION_CODE", help="NVA institution code"
+    ),
+    endpoint_url: str = typer.Option(
+        ...,
+        envvar="NVA_S3_ENDPOINT_URL",
+        help="AWS S3 endpoint URL",
+    ),
+    access_key: str = typer.Option(
+        ...,
+        envvar="NVA_S3_ACCESS_KEY",
+        help="AWS S3 access key",
+    ),
+    secret_key: str = typer.Option(
+        ...,
+        envvar="NVA_S3_SECRET_KEY",
+        help="AWS S3 secret key",
+    ),
+    bucket: str = typer.Option(
+        ...,
+        envvar="NVA_S3_BUCKET",
+        help="AWS S3 bucket name",
+    ),
+    prefix: str = typer.Option(
+        ...,
+        envvar="NVA_S3_PREFIX",
+        help="AWS S3 prefix (folder path) for storing data",
+    ),
+    region: str = typer.Option(
+        "us-east-1",
+        envvar="NVA_S3_REGION",
+        help="AWS S3 region",
+    ),
 ):
-    if not endpoint_url:
-        log.error("AWS S3 endpoint URL is not provided")
-        raise typer.Exit(code=1)
-    if not access_key:
-        log.error("AWS S3 Bucket access key is not provided")
-        raise typer.Exit(code=1)
-    if not secret_key:
-        log.error("AWS S3 Bucket secret key is not provided")
-        raise typer.Exit(code=1)
-
     log.info("Starting NVA data sync")
     log.info(f"Data will be available at: {endpoint_url}/{bucket}/{prefix}")
-    credentials = AwsCredentials(
-        s3_url_style="path",
+
+    credentials = create_s3_credentials(
         endpoint_url=endpoint_url,
-        aws_secret_access_key=secret_key,
-        aws_access_key_id=access_key,
-        region_name=region,
+        access_key=access_key,
+        secret_key=secret_key,
+        region=region,
     )
 
-    pipeline = dlt.pipeline(
+    pipeline = create_pipeline(
         pipeline_name=duckdb_name,
-        destination=filesystem(
-            region_name=region,
-            bucket_url=f"s3://{bucket}/" + prefix,
-            credentials=credentials,
-            layout="{table_name}.{ext}",
-        ),
-        dataset_name="main",
-        progress="log",
+        bucket=bucket,
+        prefix=prefix,
+        credentials=credentials,
+        region=region,
     )
 
     log.info(
@@ -201,28 +211,15 @@ def run(
     log.info("NVA data sync completed")
     log.info(f"Data available at: {endpoint_url}/{bucket}/{prefix}")
 
-    con = duckdb.connect()
-    con.execute("INSTALL httpfs;")
-    con.execute("LOAD httpfs;")
-    con.execute(f"""
-        CREATE OR REPLACE SECRET (
-            TYPE S3,
-            KEY_ID '{access_key}',
-            SECRET '{secret_key}',
-            ENDPOINT '{endpoint_url.replace("https://", "").replace("http://", "")}',
-            REGION '{region}',
-            URL_STYLE 'path'
-        );
-    """)
+    con = setup_duckdb_s3_connection(
+        endpoint_url=endpoint_url,
+        access_key=access_key,
+        secret_key=secret_key,
+        region=region,
+    )
 
-    timestamp = datetime.datetime.now().isoformat()
-    con.execute(f"""
-        COPY (SELECT '{timestamp}' as last_successful_run)
-        TO 's3://{bucket}/{prefix}/last_successful_run.parquet'
-        (FORMAT PARQUET, COMPRESSION ZSTD)
-    """)
+    write_timestamp(con, bucket, prefix)
     con.close()
-    log.info(f"Last successful run timestamp written: {timestamp}")
 
 
 if __name__ == "__main__":
