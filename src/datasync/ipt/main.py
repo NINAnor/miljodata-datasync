@@ -1,3 +1,5 @@
+from xml.parsers.expat import ExpatError
+
 import fsspec
 import typer
 import xmlschema
@@ -45,11 +47,16 @@ def run(
                 parquet_url = None
 
         text = get_dataset_metadata(resource_id=resource["id"])
-        xml_url = eml_write_record(resource, text, skip=skip_csw)
-        log.debug("xml generated", url=xml_url)
+        try:
+            xml_url = eml_write_record(resource, text, skip=skip_csw)
+            log.debug("xml generated", url=xml_url)
 
-        if parquet_url and not skip_dms:
-            create_dms_dataset(resource, parquet_url, xml_url)
+            if parquet_url and not skip_dms:
+                create_dms_dataset(resource, parquet_url, xml_url)
+        except ExpatError:
+            log.error(
+                "It was not possible to parse the metadata XML", resource=resource
+            )
 
         if not skip_geoapi:
             to_pygeoapi_resource(resource, text)
