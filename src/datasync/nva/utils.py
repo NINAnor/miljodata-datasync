@@ -26,7 +26,7 @@ def get_nva_resources(
     Yields:
         Resources from the NVA API
     """
-    log.info(f"Fetching resources with params: {search_params}")
+    log.debug(f"Fetching resources with params: {search_params}")
     yield from client.paginate(
         "search/resources",
         method="GET",
@@ -106,7 +106,7 @@ def create_pipeline(
         pipeline_name=pipeline_name,
         destination=filesystem(
             region_name=region,
-            bucket_url=f"s3://{bucket}/{prefix}",
+            bucket_url=f"s3://{bucket}/{prefix.rstrip('/')}",
             credentials=credentials,
             layout="{table_name}.{ext}",
         ),
@@ -150,6 +150,7 @@ def write_timestamp(
 ) -> str:
     """Write last successful run timestamp to S3."""
     timestamp = datetime.datetime.now().isoformat()
+    prefix = prefix.rstrip("/")
     con.execute(f"""
         COPY (SELECT '{timestamp}' as last_successful_run)
         TO 's3://{bucket}/{prefix}/last_successful_run.parquet'
