@@ -59,6 +59,9 @@ def search_resources_api(
     storage_region: str = typer.Option(
         "us-east-1", "--storage-region", help="S3 region for storage"
     ),
+    add_timestamp: bool = typer.Option(
+        True, help="Whether to write last successful run timestamp to S3"
+    ),
 ):
     """
     Get resources from NVA API
@@ -128,7 +131,7 @@ def search_resources_api(
         log.error("Valid filters", valid_filters=VALID_PARAMS_NVA_API)
         raise typer.Exit(code=1)
 
-    log.info(f"Fetching NVA data with search parameters: {search_params}")
+    log.debug(f"Fetching NVA data with search parameters: {search_params}")
 
     credentials = create_s3_credentials(
         endpoint_url=storage_endpoint_url,
@@ -145,8 +148,8 @@ def search_resources_api(
         region=storage_region,
     )
 
-    log.info(f"Fetching resources from {base_url}")
-    pipeline.run(
+    log.debug(f"Fetching resources from {base_url}")
+    load_info = pipeline.run(
         nva_search_source(
             base_url=base_url,
             resource_name=resource_name,
@@ -156,14 +159,15 @@ def search_resources_api(
         loader_file_format="parquet",
     )
 
-    if apply_filter:
-        con = setup_duckdb_s3_connection(
-            endpoint_url=storage_endpoint_url,
-            access_key=storage_access_key,
-            secret_key=storage_secret_key,
-            region=storage_region,
-        )
+    log.debug("Pipeline run completed", load_info=load_info)
 
+    con = setup_duckdb_s3_connection(
+        endpoint_url=storage_endpoint_url,
+        access_key=storage_access_key,
+        secret_key=storage_secret_key,
+        region=storage_region,
+    )
+    if apply_filter:
         apply_filter_transformation(
             con=con,
             bucket=storage_bucket,
@@ -172,11 +176,14 @@ def search_resources_api(
             check_additional_identifiers=True,
         )
 
-    write_timestamp(con, storage_bucket, storage_prefix)
+    if add_timestamp:
+        write_timestamp(con, storage_bucket, storage_prefix)
     con.close()
 
+    log.debug("NVA data sync completed")
     log.info(
-        f"Data available at: {storage_endpoint_url}/{storage_bucket}/{storage_prefix}/"
+        f"Data available at: {storage_endpoint_url}/{storage_bucket}/"
+        f"{storage_prefix.rstrip('/')}/"
         f"main/{resource_name}.parquet"
     )
 
