@@ -142,7 +142,10 @@ def services_to_parquet(
     nullif(trim(resource->'description', '""'), 'null') as description,
     nullif(trim(resource->'access', '""'), 'null') as access,
     nullif(trim(resource->'internal_ref', '""'), 'null') as internal_ref,
-    coalesce(try_cast(trim(resource->'external', '""') as bool), false) as external
+    coalesce(try_cast(trim(resource->'external', '""') as bool), false) as external,
+    coalesce(try_cast(trim(resource->'dms_featured', '""') as bool), false) as featured,
+    nullif(trim(resource->'dms_featured_order', '""'), 'null') as featured_order,
+    nullif(trim(resource->'dms_featured_icon', '""'), 'null') as featured_icon
     """).write_parquet(
         f"s3://{bucket}{prefix}/services_resource.parquet", overwrite=True
     )
