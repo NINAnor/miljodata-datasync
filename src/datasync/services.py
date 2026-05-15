@@ -1,4 +1,5 @@
 import copy
+import pathlib
 from collections import OrderedDict
 
 import duckdb
@@ -8,7 +9,7 @@ import s3fs
 import typer
 import yaml
 
-from .settings import env
+from .settings import env, log
 
 app = typer.Typer(help="Miljødata Infrastructure as Code pipelines")
 
@@ -167,6 +168,82 @@ DASHBOARD_REPO = env("SERVICES_DASHBOARD_REPO", default=None)
 DASHBOARD_ORG = env("SERVICES_DASHBOARD_ORG", default="ninanor")
 
 
+def parse_services(fs: fsspec.AbstractFileSystem):
+    curated = OrderedDict()
+    all_services = OrderedDict()
+
+    ICON = {
+        "web": "fas fa-globe",
+        "code": "fab fa-github",
+        "data": "fas fa-database",
+        "docs": "fas fa-book",
+        "mobileApp": "fas fa-mobile",
+        "template": "fas fa-copy",
+        "scripts": "fas fa-wrench",
+        "other": "",
+    }
+    TAG = {
+        "permit": "is-danger",
+        "private": "is-info",
+        "public": "is-success",
+    }
+
+    services_paths = fs.glob(path="services/*/*/metadata.yml")
+    for spath in services_paths:
+        log.info("found path", path=spath)
+        with fs.open(spath, "r") as f:
+            data = yaml.load(f, Loader=yaml.SafeLoader)
+            parts = pathlib.Path(spath).parts
+            project_name = parts[-3]
+            for resource in data.get("resources", []):
+                log.info("Parsing resource", resource=resource)
+                if not resource["uri"].startswith("http") or resource.get(
+                    "external", False
+                ):
+                    log.info("Skipping resource", resource=resource)
+                    # skip non http resources and external resources
+                    continue
+
+                if group := resource.get("group"):
+                    if group not in curated:
+                        curated[group] = {
+                            "name": group,
+                            "items": [],
+                        }
+
+                    curated[group]["items"].append(
+                        {
+                            "name": resource.get("title", data.get("title", "")),
+                            "subtitle": resource.get("description", ""),
+                            "url": resource["uri"],
+                            "tag": resource["access"],
+                            "tagstyle": TAG[resource["access"]],
+                            "target": "_blank",
+                            "icon": ICON[resource.get("type", "web")],
+                        }
+                    )
+
+                group_2 = f"{project_name}"
+                if group_2 not in all_services:
+                    all_services[group_2] = {
+                        "name": group_2.capitalize(),
+                        "items": [],
+                    }
+
+                all_services[group_2]["items"].append(
+                    {
+                        "name": resource.get("title", data.get("title", "")),
+                        "subtitle": resource.get("description", ""),
+                        "url": resource["uri"],
+                        "tag": resource["access"],
+                        "tagstyle": TAG[resource["access"]],
+                        "target": "_blank",
+                        "icon": ICON[resource.get("type", "web")],
+                    }
+                )
+    return curated, all_services
+
+
 @app.command(
     help="Produce a Homer Dashbord using the Miljødata Infrastructure as Code "
     "repository as data source"
@@ -209,75 +286,7 @@ def dashboard(
     with dashboard_repo.open("base-config.yml", "r") as base_conf_file:
         base_conf = yaml.load(base_conf_file, Loader=yaml.SafeLoader)
 
-    curated = OrderedDict()
-    all_services = OrderedDict()
-
-    ICON = {
-        "web": "fas fa-globe",
-        "code": "fab fa-github",
-        "data": "fas fa-database",
-        "docs": "fas fa-book",
-        "mobileApp": "fas fa-mobile",
-        "template": "fas fa-copy",
-        "scripts": "fas fa-wrench",
-        "other": "",
-    }
-    TAG = {
-        "permit": "is-danger",
-        "private": "is-info",
-        "public": "is-success",
-    }
-
-    services_paths = infrastucture_repo.glob(path="services/*/*/metadata.yml")
-    for spath in services_paths:
-        with infrastucture_repo.open(spath, "r") as f:
-            data = yaml.load(f, Loader=yaml.SafeLoader)
-            _, project_name, module_name, _ = spath.split("/")
-            for resource in data.get("resources"):
-                if not resource["uri"].startswith("http") or resource.get(
-                    "external", False
-                ):
-                    print(resource)
-                    # skip non http resources and external resources
-                    continue
-
-                if group := resource.get("group"):
-                    if group not in curated:
-                        curated[group] = {
-                            "name": group,
-                            "items": [],
-                        }
-
-                    curated[group]["items"].append(
-                        {
-                            "name": resource.get("title", data.get("title", "")),
-                            "subtitle": resource.get("description", ""),
-                            "url": resource["uri"],
-                            "tag": resource["access"],
-                            "tagstyle": TAG[resource["access"]],
-                            "target": "_blank",
-                            "icon": ICON[resource.get("type", "web")],
-                        }
-                    )
-
-                group_2 = f"{project_name}"
-                if group_2 not in all_services:
-                    all_services[group_2] = {
-                        "name": group_2.capitalize(),
-                        "items": [],
-                    }
-
-                all_services[group_2]["items"].append(
-                    {
-                        "name": resource.get("title", data.get("title", "")),
-                        "subtitle": resource.get("description", ""),
-                        "url": resource["uri"],
-                        "tag": resource["access"],
-                        "tagstyle": TAG[resource["access"]],
-                        "target": "_blank",
-                        "icon": ICON[resource.get("type", "web")],
-                    }
-                )
+    curated, all_services = parse_services(infrastucture_repo)
 
     curated_conf = copy.deepcopy(base_conf)
     curated_conf["services"] = [group for _, group in curated.items()]
@@ -298,3 +307,12 @@ def dashboard(
             all_conf,
             f,
         )
+
+
+@app.command(
+    help="Test the parsing of the services metadata "
+    "and the generation of the dashboard configuration"
+)
+def dashboard_test():
+    fs = fsspec.filesystem("file")
+    parse_services(fs)
