@@ -59,6 +59,9 @@ dms_sync = "datasync.dms:app"
 nva_sync = "datasync.nva:app"
 ubw_sync = "datasync.ubw:app"
 
+[tool.deptry]
+known_first_party = ["src"]
+
 [tool.deptry.per_rule_ignores]
 DEP002 = ["rich", "numpy", "setuptools"]
 
