@@ -13,7 +13,7 @@ from ..settings import log
 
 def get_nva_resources(
     client: RESTClient,
-    search_params: dict[str, str],
+    search_params: dict[str, list[str]],
 ):
     """
     Function to fetch resources from NVA search API.
@@ -38,7 +38,7 @@ def get_nva_resources(
 def nva_search_source(
     base_url: str,
     resource_name: str = "resources",
-    search_params: dict[str, str] | None = None,
+    **kwargs: list[str],
 ):
     """
     DLT source for fetching resources from NVA search API.
@@ -46,26 +46,23 @@ def nva_search_source(
     Args:
         base_url: NVA API base URL
         resource_name: Name for the DLT resource
-        search_params: Dictionary of search parameters (project, publisher, etc.)
+        **kwargs: Search parameters as keyword arguments (project, publisher, etc.)
 
     Example:
-        # For project-based search:
-        nva_search_source(
-            resource_name="renew_hydro_resources",
-            search_params={"project": "https://api.nva.unit.no/cristin/project/2732649"}
-        )
+    # For project-based search:
+    nva_search_source(
+        resource_name="renew_hydro_resources",
+        project=["https://api.nva.unit.no/cristin/project/2732649"]
+    )
 
-        # For publisher-based search:
-        nva_search_source(
-            resource_name="atlantic_salmon_resources",
-            search_params={"publisher": "Vitenskapelig råd for lakseforvaltning"}
-        )
+    # For publisher-based search:
+    nva_search_source(
+        resource_name="atlantic_salmon_resources",
+        publisher=["Vitenskapelig råd for lakseforvaltning"]
+    )
 
-        # For more parameters: https://swagger-ui.nva.unit.no/
+    # For more parameters: https://swagger-ui.nva.unit.no/
     """
-    if search_params is None:
-        search_params = {}
-
     client = RESTClient(
         base_url=base_url,
         paginator=JSONLinkPaginator(next_url_path="nextResults"),
@@ -73,7 +70,7 @@ def nva_search_source(
     )
 
     yield dlt.resource(
-        get_nva_resources(client, search_params),
+        get_nva_resources(client, kwargs),
         name=resource_name,
         write_disposition="replace",
         primary_key="identifier",
@@ -203,5 +200,7 @@ def apply_filter_transformation(
         compression="zstd",
         overwrite=True,
     )
-
-    log.info("Filter applied and data written back to S3")
+    log.info(
+        "Filter applied and data written back to S3",
+        number_of_resources=len(filtered_resources),
+    )
