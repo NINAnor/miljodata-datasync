@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import typer
 
 from ..settings import (
@@ -61,8 +63,8 @@ def search_resources_api(
     """
     Get resources from NVA API
 
-    This will first fetch the data from the NVA API based on the search parameters
-    then write the data to the specified S3 location
+    This will use the NVA API to fetch resources based on the provided parameters.
+    The data will be written to the specified S3 location in parquet format.
 
     Args:
         resource_name: Will be used for the output files on S3, avoid using '-'.
@@ -91,7 +93,7 @@ def search_resources_api(
     # Filter by contributor and publication year:
     uv run datasync nva search-resources-api \
         --resource-name "author-publications" \
-        --filter contributor="https://api.nva.unit.no/cristin/person/1773250" \\
+        --filter contributor="https://api.nva.unit.no/cristin/person/1773250" \
         --filter publication_year_since=2020
     """
     log.debug("Starting NVA API search with parameters", filters=filters)
@@ -109,7 +111,7 @@ def search_resources_api(
             "in the output file names due to DLT naming conventions."
         )
 
-    search_params = {}
+    search_params: defaultdict[str, list[str]] = defaultdict(list)
     for filter_str in filters:
         key, value = filter_str.split("=", 1)
         key = key.strip()
@@ -119,7 +121,8 @@ def search_resources_api(
             log.error("Valid filters", valid_filters=VALID_PARAMS_NVA_API)
             raise typer.Exit(code=1)
 
-        search_params[key] = value
+        search_params[key].append(value)
+
     log.debug("Parsed search parameters", search_params=search_params)
     if not search_params:
         log.error("Valid filters", valid_filters=VALID_PARAMS_NVA_API)
@@ -143,17 +146,15 @@ def search_resources_api(
     )
 
     log.info(f"Fetching resources from {base_url}")
-    load_info = pipeline.run(
+    pipeline.run(
         nva_search_source(
             base_url=base_url,
             resource_name=resource_name,
-            search_params=search_params,
+            **search_params,
         ),
         write_disposition="replace",
         loader_file_format="parquet",
     )
-
-    log.info("Pipeline run completed", load_info=load_info)
 
     if apply_filter:
         con = setup_duckdb_s3_connection(
@@ -174,7 +175,6 @@ def search_resources_api(
     write_timestamp(con, storage_bucket, storage_prefix)
     con.close()
 
-    log.info("NVA data sync completed")
     log.info(
         f"Data available at: {storage_endpoint_url}/{storage_bucket}/{storage_prefix}/"
         f"main/{resource_name}.parquet"
