@@ -505,8 +505,8 @@ def replicate(
         log.warning("--environment flag is set, but table has no data, skipping")
 
     if not stream_configs:
-        log.error("No tables with data found to replicate")
-        raise typer.Exit(1)
+        log.warning("No tables with data found to replicate, skipping")
+        return
 
     streams = {}
     for data_type, config in stream_configs.items():
