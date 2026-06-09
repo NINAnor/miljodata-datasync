@@ -184,7 +184,7 @@ AND ai.source_name = 'nva@sikt'
         SELECT
         CAST(json_extract_string(j.value, '$.sequence') AS INTEGER) AS seq,
         json_extract_string(j.value, '$.identity.name') AS full_name
-        FROM json_each(r.entity_description__contributors_preview) AS j
+        FROM json_each(r.entity_description__contributors) AS j
     ),
 
     parts AS (
@@ -283,7 +283,7 @@ AND ai.source_name = 'nva@sikt'
             )
         )
     FROM
-        json_each(r.entity_description__contributors_preview) AS j
+        json_each(r.entity_description__contributors) AS j
     ) AS contributors_names,
     CASE
     WHEN json_extract_string(r.entity_description__publication_date, '$.year') IS NULL THEN NULL
