@@ -71,5 +71,3 @@ if AWS_ENDPOINT_URL:
             SCOPE 's3://{S3_BUCKET}'
         );
     """).fetchall()
-else:
-    logging.error("AWS_ENDPOINT_URL is required")

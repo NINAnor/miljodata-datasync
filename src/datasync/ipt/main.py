@@ -10,6 +10,7 @@ from .dms import create_dms_dataset
 from .geoapi import to_pygeoapi_resource
 from .ipt import get_dataset_metadata, get_datasets
 from .parquet import version_to_parquet
+from .settings import AWS_ENDPOINT_URL
 
 app = typer.Typer(
     help="Provide commands to deal with IPT", pretty_exceptions_enable=False
@@ -33,6 +34,8 @@ def run(
         default=None, help="execute only on resources which contains that string"
     ),
 ):
+    if not AWS_ENDPOINT_URL:
+        raise typer.BadParameter("IPT_AWS_ENDPOINT_URL is required")
     index = 1
     for resource in get_datasets():
         if search and search not in resource["id"]:
