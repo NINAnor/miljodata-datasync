@@ -481,7 +481,7 @@ def replicate(
     if tags and check_table_has_data(duckdb_path, "tags", dataset_name):
         stream_configs["tags"] = {
             "table_name": f"{dataset_name}.tags",
-            "primary_key": ["detected_at"],
+            "primary_key": ["detected_at", "tag"],
             "update_key": "detected_at",
             "time_column": "detected_at",
             "location": "antenna__reader__site__slug",
