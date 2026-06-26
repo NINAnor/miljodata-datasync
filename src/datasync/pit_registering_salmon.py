@@ -46,6 +46,56 @@ SITES = {
 }
 
 
+def write_timestamp(
+    con: duckdb.DuckDBPyConnection,
+    bucket: str,
+    prefix: str,
+) -> str:
+    """
+    TODO: This is also used in NVA script, move to a common utils
+    Write last successful run timestamp to S3.
+    """
+    timestamp = datetime.now().isoformat()
+    con.execute(f"""
+        COPY (SELECT '{timestamp}' as last_successful_run)
+        TO 's3://{bucket}/{prefix}/last_successful_run.parquet'
+        (FORMAT PARQUET, COMPRESSION ZSTD)
+    """)
+    log.info("Last successful run timestamp written", time=timestamp)
+    return timestamp
+
+
+def setup_duckdb_s3_connection(
+    endpoint_url: str,
+    access_key: str,
+    secret_key: str,
+    region: str,
+) -> duckdb.DuckDBPyConnection:
+    """
+    TODO: This is also used in NVA script, move to a common utils
+    Set up DuckDB connection with S3 support
+    """
+    con = duckdb.connect()
+    con.execute("INSTALL httpfs;")
+    con.execute("LOAD httpfs;")
+
+    # Clean endpoint URL
+    clean_endpoint = endpoint_url.replace("https://", "").replace("http://", "")
+
+    con.execute(f"""
+        CREATE OR REPLACE SECRET (
+            TYPE S3,
+            KEY_ID '{access_key}',
+            SECRET '{secret_key}',
+            ENDPOINT '{clean_endpoint}',
+            REGION '{region}',
+            URL_STYLE 'path'
+        );
+    """)
+
+    return con
+
+
 def hex_to_decimal_tag(hex_tag):
     """
     Convert hexadecimal PIT tag format to ISO decimal format.
@@ -104,7 +154,7 @@ def get_environmental_data(
         )
         yield from client.paginate(
             f"enviro/{location_code}",
-            method="get",
+            method="GET",
             params={
                 "begin_dt": begin_date,
                 "end_dt": end_date,
@@ -121,7 +171,7 @@ def get_tags_data(
         log.debug("Fetching tags data for location", location_code=location_code)
         yield from client.paginate(
             f"tags/{location_code}",
-            method="get",
+            method="GET",
             params={
                 "begin_dt": begin_date,
                 "end_dt": end_date,
@@ -141,7 +191,7 @@ def get_readers_voltage_data(
         )
         yield from client.paginate(
             f"reader/{location_code}",
-            method="get",
+            method="GET",
             params={
                 "begin_dt": begin_date,
                 "end_dt": end_date,
@@ -405,7 +455,7 @@ def replicate(
     if tags and check_table_has_data(duckdb_path, "tags", dataset_name):
         stream_configs["tags"] = {
             "table_name": f"{dataset_name}.tags",
-            "primary_key": ["detected_at"],
+            "primary_key": ["detected_at", "tag"],
             "update_key": "detected_at",
             "time_column": "detected_at",
             "location": "antenna__reader__site__slug",
@@ -455,6 +505,15 @@ def replicate(
         env={"SLING_STATE": "NINAS3/data/sling", "SLING_DIRECT_INSERT": "True"},
         debug=True,
     ).run()
+
+    con = setup_duckdb_s3_connection(
+        endpoint_url=endpoint_url,
+        access_key=access_key,
+        secret_key=secret_key,
+        region=region,
+    )
+
+    write_timestamp(con, bucket, "tables")
 
 
 if __name__ == "__main__":
