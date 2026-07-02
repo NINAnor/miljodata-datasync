@@ -327,8 +327,8 @@ def run(
         )
 
     if yesterday:
-        begin_date = (datetime.today() - timedelta(days=2)).strftime("%Y-%m-%d")
-        end_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        begin_date = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        end_date = (datetime.today()).strftime("%Y-%m-%d")
         log.info("Setting date range to yesterday", date=begin_date)
 
     if all_locations:
