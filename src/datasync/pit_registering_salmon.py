@@ -453,19 +453,16 @@ def replicate(
     os.environ["DUCKDB"] = f"{{type: duckdb, instance: {duckdb_path}}}"
 
     if not any([readers, tags, environment]):
-        typer.BadParameter(
+        raise typer.BadParameter(
             "Error: At least one data type must be selected "
             "(--readers, --tags, or --environment)"
         )
-        raise typer.Exit(1)
 
     if not Path(duckdb_path).exists():
-        typer.BadParameter(f"Error: DuckDB file not found at {duckdb_path}")
-        raise typer.Exit(1)
+        raise typer.BadParameter(f"Error: DuckDB file not found at {duckdb_path}")
 
     # only include configs for enabled data types that have data
     stream_configs = {}
-
     if readers and check_table_has_data(duckdb_path, "readers_voltage", dataset_name):
         stream_configs["readers"] = {
             "table_name": f"{dataset_name}.readers_voltage",
