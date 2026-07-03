@@ -2,7 +2,6 @@
 
 """Biomark PIT registering salmon data synchronization."""
 
-import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -361,6 +360,89 @@ def run(
         )
     )
 
+    if not Path(duckdb_path).exists():
+        raise typer.BadParameter(
+            f"Error: DuckDB file not found at {Path(duckdb_path).resolve()}"
+        )
+
+    ## REPLICATE WITH SLING
+    # only include configs for enabled data types that have data
+    stream_configs = {}
+    if readers and check_table_has_data(duckdb_path, "readers_voltage", dataset_name):
+        stream_configs["readers"] = {
+            "table_name": f"{dataset_name}.readers_voltage",
+            "primary_key": ["read_at"],
+            "update_key": "read_at",
+            "time_column": "read_at",
+            "location": "reader__site__slug",
+        }
+        log.info("Added readers_voltage to stream config (has data)")
+    elif readers:
+        log.warning("--readers_voltage flag is True but table has no data, skipping")
+
+    if tags and check_table_has_data(duckdb_path, "tags", dataset_name):
+        stream_configs["tags"] = {
+            "table_name": f"{dataset_name}.tags",
+            "primary_key": ["detected_at", "tag"],
+            "update_key": "detected_at",
+            "time_column": "detected_at",
+            "location": "antenna__reader__site__slug",
+        }
+        log.info("Added tags to stream config (has data)")
+    elif tags:
+        log.warning("--tags flag is set but table has no data, skipping")
+
+    if environment and check_table_has_data(
+        duckdb_path, "environment_data", dataset_name
+    ):
+        stream_configs["environment"] = {
+            "table_name": f"{dataset_name}.environment_data",
+            "primary_key": ["read_at"],
+            "update_key": "read_at",
+            "time_column": "read_at",
+            "location": "reader__site__slug",
+        }
+        log.info("Added environment_data to stream config (has data)")
+    elif environment:
+        log.warning("--environment flag is set, but table has no data, skipping")
+
+    if not stream_configs:
+        log.warning("No tables with data found to replicate, skipping")
+        return
+
+    streams = {}
+    for data_type, config in stream_configs.items():
+        type_streams = {
+            f"{data_type}__{location}": create_stream_config(config, location)
+            for location in SITES.values()
+        }
+        streams.update(type_streams)
+        typer.echo(f"Added {len(type_streams)} {data_type} streams")
+
+    typer.echo(f"Total streams to replicate: {len(streams)}")
+
+    Replication(
+        source="DUCKDB",
+        target="NINAS3",
+        defaults={
+            "object": "tables/{stream_name}/{part_year}/{part_month}/{part_day}",
+            "mode": "incremental",
+            "target_options": {"format": "parquet"},
+        },
+        streams=streams,
+        env={
+            "SLING_STATE": "NINAS3/data/sling",
+            "SLING_DIRECT_INSERT": "True",
+            "DUCKDB": f"{{type: duckdb, instance: {duckdb_path}}}",
+            "NINAS3": f"{{type: s3, bucket: {BIOMARK_BUCKET}, use_environment: true }}",
+            "AWS_ACCESS_KEY_ID": BIOMARK_ACCESS_KEY,
+            "AWS_SECRET_ACCESS_KEY": BIOMARK_SECRET_KEY,
+            "AWS_REGION": BIOMARK_REGION,
+            "AWS_ENDPOINT": BIOMARK_AWS_ENDPOINT,
+        },
+        debug=True,
+    ).run()
+
 
 def create_stream_config(config: dict, location: str) -> dict:
     """Create a stream configuration for a specific data type and location."""
@@ -429,105 +511,6 @@ def check_table_has_data(db_path: str, table_name: str, dataset_name: str) -> bo
     except Exception as e:
         log.error(f"Error checking table {table_name}: {e}")
         return False
-
-
-@app.command()
-def replicate(
-    bucket: str = BIOMARK_BUCKET,
-    endpoint_url: str = BIOMARK_AWS_ENDPOINT,
-    access_key: str = BIOMARK_ACCESS_KEY,
-    secret_key: str = BIOMARK_SECRET_KEY,
-    duckdb_path: str = BIOMARK_DUCKDB_PATH,
-    region: str = BIOMARK_REGION,
-    dataset_name: str = BIOMARK_DATASET_NAME,
-    tags: bool = typer.Option(False, help="Add tags data to S3"),
-    readers: bool = typer.Option(False, help="Add readers voltage data to S3"),
-    environment: bool = typer.Option(False, help="Add environment data to S3"),
-):
-    """Upload data from .duckdb to S3 bucket."""
-    os.environ["NINAS3"] = f"{{type: s3, bucket: {bucket}, use_environment: true }}"
-    os.environ["AWS_ACCESS_KEY_ID"] = access_key
-    os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
-    os.environ["AWS_REGION"] = region
-    os.environ["AWS_ENDPOINT"] = endpoint_url
-    os.environ["DUCKDB"] = f"{{type: duckdb, instance: {duckdb_path}}}"
-
-    if not any([readers, tags, environment]):
-        raise typer.BadParameter(
-            "Error: At least one data type must be selected "
-            "(--readers, --tags, or --environment)"
-        )
-
-    if not Path(duckdb_path).exists():
-        raise typer.BadParameter(f"Error: DuckDB file not found at {duckdb_path}")
-
-    # only include configs for enabled data types that have data
-    stream_configs = {}
-    if readers and check_table_has_data(duckdb_path, "readers_voltage", dataset_name):
-        stream_configs["readers"] = {
-            "table_name": f"{dataset_name}.readers_voltage",
-            "primary_key": ["read_at"],
-            "update_key": "read_at",
-            "time_column": "read_at",
-            "location": "reader__site__slug",
-        }
-        log.info("Added readers_voltage to stream config (has data)")
-    elif readers:
-        log.warning("--readers_voltage flag is True but table has no data, skipping")
-
-    if tags and check_table_has_data(duckdb_path, "tags", dataset_name):
-        stream_configs["tags"] = {
-            "table_name": f"{dataset_name}.tags",
-            "primary_key": ["detected_at", "tag"],
-            "update_key": "detected_at",
-            "time_column": "detected_at",
-            "location": "antenna__reader__site__slug",
-        }
-        log.info("Added tags to stream config (has data)")
-    elif tags:
-        log.warning("--tags flag is set but table has no data, skipping")
-
-    if environment and check_table_has_data(
-        duckdb_path, "environment_data", dataset_name
-    ):
-        stream_configs["environment"] = {
-            "table_name": f"{dataset_name}.environment_data",
-            "primary_key": ["read_at"],
-            "update_key": "read_at",
-            "time_column": "read_at",
-            "location": "reader__site__slug",
-        }
-        log.info("Added environment_data to stream config (has data)")
-    elif environment:
-        log.warning("--environment flag is set, but table has no data, skipping")
-
-    if not stream_configs:
-        log.warning("No tables with data found to replicate, skipping")
-        return
-
-    streams = {}
-    for data_type, config in stream_configs.items():
-        type_streams = {
-            f"{data_type}__{location}": create_stream_config(config, location)
-            for location in SITES.values()
-        }
-        streams.update(type_streams)
-        typer.echo(f"Added {len(type_streams)} {data_type} streams")
-
-    typer.echo(f"Total streams to replicate: {len(streams)}")
-
-    Replication(
-        source="DUCKDB",
-        target="NINAS3",
-        defaults={
-            "object": "tables/{stream_name}/{part_year}/{part_month}/{part_day}",
-            "mode": "incremental",
-            "target_options": {"format": "parquet"},
-        },
-        streams=streams,
-        env={"SLING_STATE": "NINAS3/data/sling", "SLING_DIRECT_INSERT": "True"},
-        debug=True,
-    ).run()
 
 
 if __name__ == "__main__":
