@@ -7,6 +7,7 @@ import typer
 from . import (
     dms,
     gbif_backbone,
+    geonode,
     grass,
     ninagen,
     nva,
@@ -22,6 +23,7 @@ app = typer.Typer(
 app.add_typer(nva.app, name="nva")
 app.add_typer(ubw.app, name="ubw")
 app.add_typer(dms.app, name="dms")
+app.add_typer(geonode.app, name="geonode")
 app.add_typer(ninagen.app, name="ninagen")
 app.add_typer(pit_registering_salmon.app, name="pit-registering-salmon")
 app.add_typer(grass.app, name="grass-gis")

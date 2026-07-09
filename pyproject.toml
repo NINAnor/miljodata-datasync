@@ -39,6 +39,7 @@ dependencies = [
   "xmltodict>=0.14.2",
   "pyarrow>=20.0.0",
   "httpx>=0.28.1",
+  "owslib>=0.31.0",
   "setuptools>=65.5.0",
   "backoff>=2.1.0",
   "pyyaml>=6.0.3",
