@@ -45,7 +45,8 @@ dependencies = [
   "pyyaml>=6.0.3",
   "deepdiff>=8.6.1",
   "xmldiff>=2.7.0",
-  "xmlschema>=4.3.1"
+  "xmlschema>=4.3.1",
+  "rio-cogeo>=6.0.0"
 ]
 description = ""
 license = "GPL-3.0+"

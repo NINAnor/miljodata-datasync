@@ -1,10 +1,14 @@
 import datetime
+import tempfile
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
 import s3fs
 import typer
 from owslib.wps import WebProcessingService, monitorExecution
+from rio_cogeo.cogeo import cog_translate
+from rio_cogeo.profiles import cog_profiles
 from typer import Typer
 
 from .libs import dms
@@ -30,6 +34,7 @@ GEONODE_S3_ENDPOINT: str = env.str("GEONODE_S3_ENDPOINT", default="")
 GEONODE_S3_ACCESS_KEY: str = env.str("GEONODE_S3_ACCESS_KEY", default="")
 GEONODE_S3_SECRET_KEY: str = env.str("GEONODE_S3_SECRET_KEY", default="")
 GEONODE_S3_PREFIX: str = env.str("GEONODE_S3_PREFIX", default="/geonode")
+GEONODE_TEMP_DIR: str = env.str("GEONODE_TEMP_DIR", default=".tmp")
 
 
 def _get_wps_download_url(base: str, layer_alternate: str, subtype: str) -> str | None:
@@ -82,6 +87,68 @@ def _get_wps_download_url(base: str, layer_alternate: str, subtype: str) -> str 
         layer=layer_alternate,
     )
     return None
+
+
+def _download_to_tempfile(
+    download_url: str, http_client: httpx.Client, suffix: str, tmp_dir: str = ""
+) -> Path:
+    """Stream *download_url* into a named temporary file and return its path."""
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=tmp_dir or None)
+    try:
+        with http_client.stream("GET", download_url) as response:
+            response.raise_for_status()
+            for chunk in response.iter_bytes(chunk_size=8 * 1024 * 1024):
+                tmp.write(chunk)
+    finally:
+        tmp.close()
+    return Path(tmp.name)
+
+
+def _convert_to_cog(src: Path, tmp_dir: str = "") -> Path:
+    """
+    Convert *src* GeoTIFF to a Cloud Optimised GeoTiff in a sibling temp file.
+
+    Settings:
+    - Compression : ZSTD
+    - BigTIFF     : IF_SAFER
+    - Overviews   : AUTO (rio-cogeo picks the levels)
+    - Resampling  : nearest  (no data or CRS alteration)
+    """
+    dst = Path(
+        tempfile.mktemp(suffix="_cog.tiff", dir=tmp_dir or None)  # noqa: S306
+    )
+    profile = cog_profiles.get("deflate")  # base profile, overridden below
+    profile.update({"compress": "ZSTD", "bigtiff": "IF_SAFER"})
+    cog_translate(
+        source=src,
+        dst_path=dst,
+        dst_kwargs=profile,
+        overview_level=None,  # AUTO
+        overview_resampling="nearest",
+        resampling="nearest",
+        quiet=True,
+    )
+    log.info("COG conversion done", src=str(src), dst=str(dst))
+    return dst
+
+
+def _upload_file_to_s3(
+    local_path: Path,
+    s3_fs: s3fs.S3FileSystem,
+    s3_path: str,
+    s3_endpoint: str,
+) -> str:
+    """
+    Upload *local_path* to *s3_path* and return the HTTPS URL.
+    """
+    bucket_path = s3_path.lstrip("/")
+    https_uri = f"{s3_endpoint.rstrip('/')}/{bucket_path}"
+    log.info("uploading to S3", src=str(local_path), dst=s3_path)
+    with local_path.open("rb") as f_in, s3_fs.open(s3_path, "wb") as f_out:
+        while chunk := f_in.read(8 * 1024 * 1024):
+            f_out.write(chunk)
+    log.info("upload complete", s3_path=s3_path)
+    return https_uri
 
 
 def _upload_to_s3(
@@ -336,6 +403,10 @@ def v4_to_dms(
         default=GEONODE_S3_PREFIX,
         help="S3 key prefix for uploaded files (e.g. /geonode)",
     ),
+    tmp_dir: str = typer.Option(
+        default=GEONODE_TEMP_DIR,
+        help="Temp directory for COG conversion (default: system tmp)",
+    ),
 ):
     """Fetch all datasets from a GeoNode v4 instance and sync them to a DMS project."""
     datasets = _fetch_all_datasets(url)
@@ -391,25 +462,53 @@ def v4_to_dms(
 
                 # Resolve download URL via WPS gs:Download, then upload to S3.
                 # Fall back to the GeoNode direct download_url if WPS fails.
-                # The DMS resource URI is always the HTTPS source URL.
+                # Rasters are converted to COG before upload.
                 resource_uri: str | None = None
                 if layer_alternate:
-                    try:
-                        wps_url = _get_wps_download_url(base, layer_alternate, subtype)
-                        if wps_url:
-                            ext = _WPS_FILE_EXT.get(subtype, ".bin")
-                            layer_name = layer_alternate.split(":")[-1]
-                            s3_path = (
-                                f"{bucket}/{prefix}/{project_id}"
-                                f"/{ds_id}/{layer_name}{ext}"
-                            )
-                            resource_uri = _upload_to_s3(
-                                wps_url, s3, s3_path, client, endpoint
-                            )
-                    except Exception as exc:
-                        log.warning(
-                            "WPS request failed", layer=layer_alternate, error=exc
+                    ext = _WPS_FILE_EXT.get(subtype, ".bin")
+                    layer_name = layer_alternate.split(":")[-1]
+                    s3_path = (
+                        f"{bucket}/{prefix}/{project_id}/{ds_id}/{layer_name}{ext}"
+                    )
+                    bucket_path = s3_path.lstrip("/")
+                    https_uri = f"{endpoint.rstrip('/')}/{bucket_path}"
+
+                    if s3.exists(s3_path):
+                        log.info(
+                            "S3 file already exists, skipping WPS",
+                            s3_path=s3_path,
                         )
+                        resource_uri = https_uri
+                    else:
+                        try:
+                            wps_url = _get_wps_download_url(
+                                base, layer_alternate, subtype
+                            )
+                            if wps_url:
+                                if subtype == "raster":
+                                    raw = _download_to_tempfile(
+                                        wps_url, client, ".tiff", tmp_dir
+                                    )
+                                    cog: Path | None = None
+                                    try:
+                                        cog = _convert_to_cog(raw, tmp_dir)
+                                        resource_uri = _upload_file_to_s3(
+                                            cog, s3, s3_path, endpoint
+                                        )
+                                    finally:
+                                        raw.unlink(missing_ok=True)
+                                        if cog is not None:
+                                            cog.unlink(missing_ok=True)
+                                else:
+                                    resource_uri = _upload_to_s3(
+                                        wps_url, s3, s3_path, client, endpoint
+                                    )
+                        except Exception as exc:
+                            log.warning(
+                                "WPS request failed",
+                                layer=layer_alternate,
+                                error=exc,
+                            )
 
                 if not resource_uri:
                     direct_url: str = dataset.get("download_url") or ""
@@ -420,16 +519,41 @@ def v4_to_dms(
                         s3_path = (
                             f"{bucket}/{prefix}/{project_id}/{ds_id}/{layer_name}{ext}"
                         )
-                        try:
-                            resource_uri = _upload_to_s3(
-                                direct_url, s3, s3_path, client, endpoint
+                        bucket_path = s3_path.lstrip("/")
+                        https_uri = f"{endpoint.rstrip('/')}/{bucket_path}"
+
+                        if s3.exists(s3_path):
+                            log.info(
+                                "S3 file already exists, skipping download",
+                                s3_path=s3_path,
                             )
-                        except Exception as exc:
-                            log.warning(
-                                "direct download failed",
-                                ds_id=ds_id,
-                                error=exc,
-                            )
+                            resource_uri = https_uri
+                        else:
+                            try:
+                                if subtype == "raster":
+                                    raw = _download_to_tempfile(
+                                        direct_url, client, ".tiff", tmp_dir
+                                    )
+                                    cog: Path | None = None
+                                    try:
+                                        cog = _convert_to_cog(raw, tmp_dir)
+                                        resource_uri = _upload_file_to_s3(
+                                            cog, s3, s3_path, endpoint
+                                        )
+                                    finally:
+                                        raw.unlink(missing_ok=True)
+                                        if cog is not None:
+                                            cog.unlink(missing_ok=True)
+                                else:
+                                    resource_uri = _upload_to_s3(
+                                        direct_url, s3, s3_path, client, endpoint
+                                    )
+                            except Exception as exc:
+                                log.warning(
+                                    "direct download failed",
+                                    ds_id=ds_id,
+                                    error=exc,
+                                )
 
                 if not resource_uri:
                     log.warning(
