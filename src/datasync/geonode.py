@@ -541,6 +541,7 @@ def _build_map_config(
             "type": "layer",
             "name": info["title"],
             "description": info.get("abstract") or "",
+            "download_url": info["https_uri"],
             "layer": layer_def,
         }
 
