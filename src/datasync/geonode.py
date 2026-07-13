@@ -1085,7 +1085,7 @@ def v4_to_dms(
                 )
                 map_resource_id = f"{map_id}_config"
                 dms.upsert_dms_element(
-                    "resources",
+                    "mapresources",
                     map_resource_id,
                     {
                         "id": map_resource_id,
@@ -1094,10 +1094,12 @@ def v4_to_dms(
                         "uri": map_https_uri,
                         "access_type": "public",
                         "role": "data",
+                        "map_type": "nina",
                     },
                     {
                         "title": map_title + " Map Config",
                         "uri": map_https_uri,
+                        "map_type": "nina",
                     },
                 )
 
