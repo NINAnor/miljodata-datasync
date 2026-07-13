@@ -1,6 +1,7 @@
 import datetime
 import functools
 import json
+import math
 import shutil
 import subprocess
 import tempfile
@@ -453,6 +454,32 @@ def _validate_map_config(config: dict) -> None:
         raise ValueError(f"map config validation failed: {summary}")
 
 
+def _union_bbox(
+    bboxes: list[tuple[float, float, float, float]],
+) -> tuple[float, float, float, float] | None:
+    """Return the union of a list of (minx, miny, maxx, maxy) tuples."""
+    if not bboxes:
+        return None
+    minx = min(b[0] for b in bboxes)
+    miny = min(b[1] for b in bboxes)
+    maxx = max(b[2] for b in bboxes)
+    maxy = max(b[3] for b in bboxes)
+    return minx, miny, maxx, maxy
+
+
+def _bbox_from_polygon(
+    polygon: dict | None,
+) -> tuple[float, float, float, float] | None:
+    """Extract (minx, miny, maxx, maxy) from a GeoJSON Polygon dict."""
+    try:
+        coords = polygon["coordinates"][0]
+        lons = [c[0] for c in coords]
+        lats = [c[1] for c in coords]
+        return min(lons), min(lats), max(lons), max(lats)
+    except Exception:
+        return None
+
+
 def _bbox_center_zoom(ll_bbox: dict | None) -> tuple[float, float, int]:
     """
     Compute (longitude, latitude, zoom) from a GeoJSON Polygon bbox.
@@ -466,8 +493,6 @@ def _bbox_center_zoom(ll_bbox: dict | None) -> tuple[float, float, int]:
         lat = (min(lats) + max(lats)) / 2
         span = max(max(lons) - min(lons), max(lats) - min(lats))
         # Rough zoom: span 360° → zoom 0, halves every zoom level
-        import math
-
         zoom = max(0, min(18, round(math.log2(360 / max(span, 0.001)))))
         return lon, lat, zoom
     except Exception:
@@ -486,7 +511,6 @@ def _build_map_config(
     """
     pk = geonode_map["pk"]
     map_id = f"{origin}__map__{pk}"
-    lon, lat, zoom = _bbox_center_zoom(geonode_map.get("ll_bbox_polygon"))
 
     items: dict = {}
     layer_order: list[str] = []
@@ -544,6 +568,27 @@ def _build_map_config(
             "download_url": info["https_uri"],
             "layer": layer_def,
         }
+
+    # Compute view center/zoom from the union of all visible layer bboxes,
+    # falling back to the map-level bbox.
+    layer_bboxes = [
+        b
+        for info in layer_infos
+        if info["id"] in items
+        for b in [_bbox_from_polygon(info.get("ll_bbox_polygon"))]
+        if b is not None
+    ]
+    union = _union_bbox(layer_bboxes) or _bbox_from_polygon(
+        geonode_map.get("ll_bbox_polygon")
+    )
+    if union:
+        minx, miny, maxx, maxy = union
+        lon = (minx + maxx) / 2
+        lat = (miny + maxy) / 2
+        span = max(maxx - minx, maxy - miny)
+        zoom: int = max(0, min(18, round(math.log2(360 / max(span, 0.001)))))
+    else:
+        lon, lat, zoom = _bbox_center_zoom(None)
 
     root_id = "root"
     items[root_id] = {
@@ -1041,6 +1086,7 @@ def v4_to_dms(
                             "layer_name": layer_name,
                             "title": dataset.get("title") or layer_name,
                             "abstract": (dataset.get("abstract") or "").strip(),
+                            "ll_bbox_polygon": dataset.get("ll_bbox_polygon"),
                             "subtype": ds_subtype,
                             "https_uri": data_https_uri,
                             "pmtiles_uri": pmtiles_uri,
