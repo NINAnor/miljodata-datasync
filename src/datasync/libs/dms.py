@@ -67,7 +67,13 @@ def upsert_dms_element(
         res.raise_for_status()
         logger.info(f"{endpoint[:-1]} {element_id} already exists in DMS")
 
-        # Update existing element
+        # Check if update is needed
+        existing_data = res.json()
+        if all(existing_data.get(k) == v for k, v in update_data.items()):
+            logger.info(f"{endpoint[:-1]} {element_id} is unchanged, skipping update")
+            return False
+
+        # Update existing element only if changed
         logger.info(f"updating {endpoint[:-1]} {element_id} in DMS")
         res = client.patch(f"{endpoint}/{element_id}/", json=update_data)
         logger.debug("response body", body=res.text)
