@@ -464,7 +464,6 @@ dependencies = [
     { name = "rich" },
     { name = "s3fs" },
     { name = "setuptools" },
-    { name = "sling" },
     { name = "structlog" },
     { name = "typer" },
     { name = "xmldiff" },
@@ -506,7 +505,6 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
     { name = "s3fs", specifier = ">=2026.1.0" },
     { name = "setuptools", specifier = ">=65.5.0" },
-    { name = "sling", specifier = ">=1.5.1" },
     { name = "structlog", specifier = ">=25.5.0" },
     { name = "typer", specifier = ">=0.20.0" },
     { name = "xmldiff", specifier = ">=2.7.0" },
@@ -2809,15 +2807,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/94/e7/b2c673351809dca68a0e064b6af791aa332cf192da575fd474ed7d6f16a2/six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81", size = 34031, upload-time = "2024-12-04T17:35:28.174Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274", size = 11050, upload-time = "2024-12-04T17:35:26.475Z" },
-]
-
-[[package]]
-name = "sling"
-version = "1.5.13"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/94/58/3792492d6bd558786b1eb9f994a8fa7bc08944a9bb5dcabfc729d48a9188/sling-1.5.13.tar.gz", hash = "sha256:378ebdb1cc4f8c9fdca53c68dcb4a3b04a90d98d884bf6b64b659892dfe7b26c", size = 58409, upload-time = "2026-03-24T13:23:43.468Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/80/644617fe2509cab6d3612ae759614dd34a2475a64d0cf4b2e23b7d56de02/sling-1.5.13-py3-none-any.whl", hash = "sha256:cef44162f48e72aa912c3f0b3ac2d4cf7eadf6f98fa98e0ac7e8e4d3ab0be66c", size = 31969, upload-time = "2026-03-24T13:23:42.398Z" },
 ]
 
 [[package]]
