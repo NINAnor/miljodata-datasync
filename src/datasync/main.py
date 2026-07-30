@@ -5,6 +5,7 @@
 import typer
 
 from . import (
+    coat,
     dms,
     gbif_backbone,
     grass,
@@ -19,6 +20,7 @@ from .ipt.main import app as ipt_app
 app = typer.Typer(
     help="Provide subcommands for synchronizing different resources, see subcommands"
 )
+app.add_typer(coat.app, name="coat")
 app.add_typer(nva.app, name="nva")
 app.add_typer(ubw.app, name="ubw")
 app.add_typer(dms.app, name="dms")
