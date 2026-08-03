@@ -8,6 +8,7 @@ from . import (
     dms,
     gbif_backbone,
     grass,
+    mediebank,
     ninagen,
     nva,
     pit_registering_salmon,
@@ -28,6 +29,7 @@ app.add_typer(grass.app, name="grass-gis")
 app.add_typer(services.app, name="services")
 app.add_typer(gbif_backbone.app, name="gbif-backbone")
 app.add_typer(ipt_app, name="ipt")
+app.add_typer(mediebank.app, name="mediebank")
 
 if __name__ == "__main__":
     app()
