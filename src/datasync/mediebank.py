@@ -1,7 +1,5 @@
 """Sync Mediebank employee portraits to S3."""
 
-import unicodedata
-
 import duckdb
 import requests
 import s3fs
@@ -12,7 +10,7 @@ from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
 
 from .settings import log
 
-PAGE_SIZE = 199
+PAGE_SIZE = 100
 
 app = typer.Typer(help="Commands to handle Mediebank employee portraits")
 
@@ -77,12 +75,6 @@ def download_asset(token: str, api_url: str, asset_id: str) -> bytes | None:
     return response.content
 
 
-def normalize(value: str) -> str:
-    """Lowercase, strip diacritics and non-alphanumeric characters."""
-    normalized = unicodedata.normalize("NFKD", value.lower())
-    return "".join(c for c in normalized if c.isalnum())
-
-
 def load_employees(employees_parquet: str) -> dict[str, dict]:
     """Load employees with a portrait url from the employees parquet."""
     with duckdb.connect() as connection:
@@ -91,48 +83,30 @@ def load_employees(employees_parquet: str) -> dict[str, dict]:
             [employees_parquet],
         ).fetchall()
     return {
-        str(employee_id): {
-            "display": f"{first} {last}",
-            "norm": normalize(f"{first} {last}"),
-        }
+        str(employee_id): {"name": f"{first} {last}"}
         for employee_id, first, last, url in rows
         if url and "ansattbilder/" in url
     }
 
 
-def asset_names(asset: dict) -> set[str]:
-    """Normalized names associated with a Mediebank asset."""
-    names = [asset.get("headline")]
-    names += [person.get("personName", "") for person in asset.get("personsShown", [])]
-    names.append(asset.get("file", {}).get("originalFilename", ""))
-    return {normalize(name) for name in names if name}
-
-
 def match_assets_to_employees(
     assets: list[dict], employees: dict[str, dict]
 ) -> dict[str, dict]:
-    """Map each employee to their best portrait (newest dateArchived wins)."""
-    by_norm = {
-        employee["norm"]: employee_id for employee_id, employee in employees.items()
+    """Map each employee to their newest portrait, matched by headline."""
+    by_name = {
+        employee["name"]: employee_id for employee_id, employee in employees.items()
     }
 
     candidates: dict[str, list[dict]] = {}
     for asset in assets:
-        stem = asset.get("file", {}).get("originalFilename", "").split(".")[0]
-        employee_id = stem if stem.isdigit() and stem in employees else None
-        if not employee_id:
-            employee_id = next(
-                (by_norm[name] for name in asset_names(asset) if name in by_norm),
-                None,
-            )
+        employee_id = by_name.get(asset["headline"])
         if employee_id:
             candidates.setdefault(employee_id, []).append(asset)
 
-    log.info("matched assets to employees", matched=len(candidates))
-    return {
-        employee_id: max(assets, key=lambda asset: asset.get("dateArchived") or "")
-        for employee_id, assets in candidates.items()
-    }
+    matched: dict[str, dict] = {}
+    for employee_id, portraits in candidates.items():
+        matched[employee_id] = max(portraits, key=lambda asset: asset["dateArchived"])
+    return matched
 
 
 @app.command(help="Sync employee portraits from Mediebank to S3")
@@ -212,7 +186,7 @@ def employees_portraits(
         log.warning(
             "no portrait found",
             employee_id=employee_id,
-            name=employees[employee_id]["display"],
+            name=employees[employee_id]["name"],
         )
 
     log.info("Mediebank employee portraits sync completed")
