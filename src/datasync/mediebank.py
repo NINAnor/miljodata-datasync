@@ -1,5 +1,7 @@
 """Sync Mediebank employee portraits to S3."""
 
+from datetime import datetime
+
 import duckdb
 import requests
 import s3fs
@@ -174,11 +176,24 @@ def employees_portraits(
         secret=s3_secret_key,
     )
     for employee_id, asset in sorted(matched.items(), key=lambda item: int(item[0])):
+        path = f"s3://{s3_bucket}/{s3_prefix.rstrip('/')}/{employee_id}.jpg"
+
+        if fs.exists(path):
+            last_modified = fs.info(path)["LastModified"]
+            archived = datetime.fromisoformat(
+                asset["dateArchived"].replace("Z", "+00:00")
+            )
+            if archived <= last_modified:
+                log.info("up to date", employee_id=employee_id, path=path)
+                continue
+            log.info("newer portrait", employee_id=employee_id, path=path)
+        else:
+            log.info("new portrait", employee_id=employee_id, path=path)
+
         data = download_asset(token, api_url, asset["id"])
         if data is None:
             log.warning("download failed", employee_id=employee_id)
             continue
-        path = f"s3://{s3_bucket}/{s3_prefix.rstrip('/')}/{employee_id}.jpg"
         fs.write_bytes(path, data)
         log.info("copied", employee_id=employee_id, path=path)
 
