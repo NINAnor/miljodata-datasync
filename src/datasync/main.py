@@ -5,6 +5,7 @@
 import typer
 
 from . import (
+    coat,
     dms,
     gbif_backbone,
     grass,
@@ -30,6 +31,7 @@ app.add_typer(services.app, name="services")
 app.add_typer(gbif_backbone.app, name="gbif-backbone")
 app.add_typer(ipt_app, name="ipt")
 app.add_typer(mediebank.app, name="mediebank")
+app.add_typer(coat.app, name="coat")
 
 if __name__ == "__main__":
     app()
