@@ -1,5 +1,7 @@
 import dlt
 import typer
+from dlt.destinations.impl.filesystem.factory import filesystem
+from dlt.sources.credentials import AwsCredentials
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
@@ -104,10 +106,35 @@ def plausible_source(api_key: str, site_id: str = PLAUSIBLE_SITE_ID):
 
 @app.command()
 def get_plausible_analytics(
-    bucket_url: str = typer.Option(
-        default="data",
-        envvar="COAT_BUCKET_URL",
-        help="Destination bucket URL (local path or s3://...)",
+    endpoint_url: str = typer.Option(
+        ...,
+        envvar="COAT_AWS_ENDPOINT",
+        help="AWS S3 endpoint URL",
+    ),
+    access_key: str = typer.Option(
+        ...,
+        envvar="COAT_AWS_ACCESS_KEY",
+        help="AWS S3 access key",
+    ),
+    secret_key: str = typer.Option(
+        ...,
+        envvar="COAT_AWS_SECRET_KEY",
+        help="AWS S3 secret key",
+    ),
+    bucket: str = typer.Option(
+        ...,
+        envvar="COAT_AWS_BUCKET",
+        help="AWS S3 bucket name",
+    ),
+    prefix: str = typer.Option(
+        default="coat",
+        envvar="COAT_S3_PREFIX",
+        help="AWS S3 prefix (folder path) for storing data",
+    ),
+    region: str = typer.Option(
+        default="us-east-1",
+        envvar="COAT_S3_REGION",
+        help="AWS S3 region",
     ),
     api_key: str = typer.Option(
         ...,
@@ -121,17 +148,33 @@ def get_plausible_analytics(
     ),
 ):
     """Run the Plausible analytics pipeline for data.coat.no."""
+    bucket_url = f"s3://{bucket}/{prefix}"
+    credentials = AwsCredentials(
+        s3_url_style="path",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name=region,
+    )
+
+    filesystem_destination = filesystem(
+        bucket_url=bucket_url,
+        credentials=credentials,
+        layout="{table_name}.{ext}",
+    )
+
     pipeline = dlt.pipeline(
         pipeline_name="coat_plausible",
-        destination=dlt.destinations.filesystem(
-            bucket_url=bucket_url, layout="{table_name}.{ext}"
-        ),
+        destination=filesystem_destination,
         dataset_name="coat_plausible",
     )
-    pipeline.run(
+
+    load_info = pipeline.run(
         plausible_source(api_key=api_key, site_id=site_id),
         loader_file_format="parquet",
     )
+
+    log.info(f"Pipeline run info: {load_info}")
     log.info(f"Plausible pipeline complete. Data at: {bucket_url}/coat_plausible")
 
 
