@@ -78,16 +78,15 @@ def download_asset(token: str, api_url: str, asset_id: str) -> bytes | None:
 
 
 def load_employees(employees_parquet: str) -> dict[str, dict]:
-    """Load employees with a portrait url from the employees parquet."""
+    """Load all employees from the employees parquet."""
     with duckdb.connect() as connection:
         rows = connection.execute(
-            "SELECT employee_id, firstname, lastname, picture_url FROM read_parquet(?)",
+            "SELECT employee_id, firstname, lastname FROM read_parquet(?)",
             [employees_parquet],
         ).fetchall()
     return {
         str(employee_id): {"name": f"{first} {last}"}
-        for employee_id, first, last, url in rows
-        if url and "ansattbilder/" in url
+        for employee_id, first, last in rows
     }
 
 
