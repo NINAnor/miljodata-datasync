@@ -2,6 +2,8 @@ import re
 
 import backoff
 import httpx
+from dlt.destinations.impl.filesystem.factory import filesystem
+from dlt.sources.credentials import AwsCredentials
 from duckdb import DuckDBPyConnection
 from lxml import etree
 from lxml.etree import _Element
@@ -9,6 +11,31 @@ from lxml.etree import _Element
 from ..settings import log
 
 PARSER: etree.XMLParser = etree.XMLParser(resolve_entities=False)
+
+
+def s3_filesystem_destination(
+    endpoint_url: str,
+    access_key: str,
+    secret_key: str,
+    bucket: str,
+    prefix: str,
+    region: str,
+):
+    """Build an S3 bucket URL and dlt filesystem destination from credentials."""
+    bucket_url = f"s3://{bucket}/{prefix}"
+    credentials = AwsCredentials(
+        s3_url_style="path",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name=region,
+    )
+    destination = filesystem(
+        bucket_url=bucket_url,
+        credentials=credentials,
+        layout="{table_name}.{ext}",
+    )
+    return bucket_url, destination
 
 
 def get_anytext(bag: str | _Element | list[str]) -> str:
