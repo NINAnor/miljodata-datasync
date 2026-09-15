@@ -3,12 +3,11 @@ from urllib.parse import urlparse
 
 import dlt
 import typer
-from dlt.destinations.impl.filesystem.factory import filesystem
-from dlt.sources.credentials import AwsCredentials
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
 
+from .libs.helpers import s3_filesystem_destination
 from .settings import log
 
 app = typer.Typer(help="Export COAT data to parquet")
@@ -49,31 +48,6 @@ _BREAKDOWN_DIMENSIONS = [
     ("browser", "visit:browser"),
     ("os", "visit:os"),
 ]
-
-
-def s3_filesystem_destination(
-    endpoint_url: str,
-    access_key: str,
-    secret_key: str,
-    bucket: str,
-    prefix: str,
-    region: str,
-):
-    """Build an S3 bucket URL and dlt filesystem destination from credentials."""
-    bucket_url = f"s3://{bucket}/{prefix}"
-    credentials = AwsCredentials(
-        s3_url_style="path",
-        endpoint_url=endpoint_url,
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name=region,
-    )
-    destination = filesystem(
-        bucket_url=bucket_url,
-        credentials=credentials,
-        layout="{table_name}.{ext}",
-    )
-    return bucket_url, destination
 
 
 def normalize_record(record, domain: str = BASE_URL):
