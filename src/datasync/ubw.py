@@ -4,33 +4,49 @@ from dlt.destinations.impl.filesystem.factory import filesystem
 from dlt.sources.credentials import AwsCredentials
 from dlt.sources.rest_api import rest_api_source
 
-from .settings import (
-    env,
-    log,
-)
+from .settings import log
 
 app = typer.Typer(help="Export UBW APIs to Parquet in S3 bucket")
-
-UBW_BASE_URL = env("UBW_BASE_URL", default="")
-UBW_BASIC_AUTH = env("UBW_BASIC_AUTH", default="")
-UBW_ACCESS_KEY = env("UBW_ACCESS_KEY", default="")
-UBW_SECRET_KEY = env("UBW_SECRET_KEY", default="")
-UBW_AWS_ENDPOINT = env("UBW_AWS_ENDPOINT", default="")
-UBW_BUCKET = env("UBW_BUCKET", default="")
-UBW_PREFIX = env("UBW_PREFIX", default="")
 
 
 @app.command()
 def run(
-    access_key: str = UBW_ACCESS_KEY,
-    secret_key: str = UBW_SECRET_KEY,
-    endpoint_url: str = UBW_AWS_ENDPOINT,
-    bucket: str = UBW_BUCKET,
-    prefix: str = UBW_PREFIX,
-    base_url: str = UBW_BASE_URL,
-    auth: str = UBW_BASIC_AUTH,
+    access_key: str = typer.Option(
+        ...,
+        envvar="UBW_ACCESS_KEY",
+        help="AWS S3 access key",
+    ),
+    secret_key: str = typer.Option(
+        ...,
+        envvar="UBW_SECRET_KEY",
+        help="AWS S3 secret key",
+    ),
+    endpoint_url: str = typer.Option(
+        ...,
+        envvar="UBW_AWS_ENDPOINT",
+        help="AWS S3 endpoint URL",
+    ),
+    bucket: str = typer.Option(
+        ...,
+        envvar="UBW_BUCKET",
+        help="AWS S3 bucket name",
+    ),
+    prefix: str = typer.Option(
+        ...,
+        envvar="UBW_PREFIX",
+        help="AWS S3 prefix (folder path) for storing data",
+    ),
+    base_url: str = typer.Option(
+        ...,
+        envvar="UBW_BASE_URL",
+        help="Base URL for the UBW API",
+    ),
+    auth: str = typer.Option(
+        ...,
+        envvar="UBW_BASIC_AUTH",
+        help="Basic auth credentials for the UBW API",
+    ),
 ):
-    log.info(base_url)
     source = rest_api_source(
         {
             "client": {
