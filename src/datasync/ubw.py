@@ -85,6 +85,13 @@ def run(
                         "paginator": "single_page",
                     },
                 },
+                {
+                    "name": "employees",
+                    "endpoint": {
+                        "path": "objects/ninaansattdhapis",
+                        "paginator": "single_page",
+                    },
+                },
             ],
         }
     )
