@@ -2604,7 +2604,7 @@ wheels = [
 [[package]]
 name = "pygeometa"
 version = "0.22.dev1"
-source = { git = "https://github.com/nicokant/pygeometa?rev=gbif-eml#cf520759b642409d9bba9c2548f204980173d7e9" }
+source = { git = "https://github.com/nicokant/pygeometa?rev=gbif-eml#bfdec5b1aa94916c971c8c5eabed1241b2623fb9" }
 dependencies = [
     { name = "click" },
     { name = "jinja2" },
