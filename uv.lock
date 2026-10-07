@@ -5,10 +5,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version >= '3.14' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and sys_platform == 'emscripten')",
     "python_full_version >= '3.12' and python_full_version < '3.14' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.11.*' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version < '3.11' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version >= '3.12' and python_full_version < '3.14' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten')",
+    "python_full_version == '3.11.*' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version == '3.11.*' and platform_python_implementation == 'PyPy') or (python_full_version == '3.11.*' and sys_platform == 'emscripten')",
+    "python_full_version < '3.11' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version < '3.11' and platform_python_implementation == 'PyPy') or (python_full_version < '3.11' and sys_platform == 'emscripten')",
 ]
 
@@ -891,7 +891,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -2091,15 +2091,15 @@ version = "0.35.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version == '3.11.*' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version < '3.11' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version == '3.11.*' and platform_python_implementation == 'PyPy') or (python_full_version == '3.11.*' and sys_platform == 'emscripten')",
+    "python_full_version < '3.11' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version < '3.11' and platform_python_implementation == 'PyPy') or (python_full_version < '3.11' and sys_platform == 'emscripten')",
 ]
 dependencies = [
-    { name = "lxml", marker = "python_full_version < '3.12'" },
-    { name = "python-dateutil", marker = "python_full_version < '3.12'" },
-    { name = "pyyaml", marker = "python_full_version < '3.12'" },
-    { name = "requests", marker = "python_full_version < '3.12'" },
+    { name = "lxml" },
+    { name = "python-dateutil" },
+    { name = "pyyaml" },
+    { name = "requests" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bf/03/5df0b995a3a6eefc24cc2320e3fe830d95e76ee6b0b1c6c9d0f1d4040bbe/owslib-0.35.0.tar.gz", hash = "sha256:0182f377bb30d25b78284bbaf82a12dece97902ed844cee88791ff38665b9b00", size = 194282, upload-time = "2025-10-28T15:13:42.594Z" }
 wheels = [
@@ -2117,10 +2117,10 @@ resolution-markers = [
     "(python_full_version >= '3.12' and python_full_version < '3.14' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten')",
 ]
 dependencies = [
-    { name = "lxml", marker = "python_full_version >= '3.12'" },
-    { name = "python-dateutil", marker = "python_full_version >= '3.12'" },
-    { name = "pyyaml", marker = "python_full_version >= '3.12'" },
-    { name = "requests", marker = "python_full_version >= '3.12'" },
+    { name = "lxml" },
+    { name = "python-dateutil" },
+    { name = "pyyaml" },
+    { name = "requests" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/10/5d/f2b14a61454bc290c48786c1521f7c9e60996cb0d207b544feb722c82dee/owslib-0.36.0.tar.gz", hash = "sha256:b1ea352ee84f37a1a8ae44122b13cbd3b5b7bf9af0f74d84fe9ed7d9613b9543", size = 196090, upload-time = "2026-06-04T07:05:57.616Z" }
 wheels = [
@@ -3077,8 +3077,8 @@ resolution-markers = [
     "python_full_version >= '3.14' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version >= '3.14' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and sys_platform == 'emscripten')",
     "python_full_version >= '3.12' and python_full_version < '3.14' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "python_full_version == '3.11.*' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version >= '3.12' and python_full_version < '3.14' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten')",
+    "python_full_version == '3.11.*' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "(python_full_version == '3.11.*' and platform_python_implementation == 'PyPy') or (python_full_version == '3.11.*' and sys_platform == 'emscripten')",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/aa/2a/9618a122aeb2a169a28b03889a2995fe297588964333d4a7d67bdf46e147/rpds_py-2026.6.3.tar.gz", hash = "sha256:1cebd1337c242e4ec2293e541f712b2da849b29f48f0c293684b71c0632625d4", size = 64051, upload-time = "2026-06-30T07:17:53.009Z" }
@@ -3517,7 +3517,7 @@ wheels = [
 
 [[package]]
 name = "virtualenv"
-version = "21.7.10"
+version = "21.7.13"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "distlib" },
@@ -3526,9 +3526,9 @@ dependencies = [
     { name = "python-discovery" },
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/45/9d/5acd348310e0803c658c8cf7c4d928e2d22fc4f79c29098b651cd3edfdba/virtualenv-21.7.10.tar.gz", hash = "sha256:a7bf10f37ecc36f1942d6e469d6b59f5fe308f60ac711f66f51ef3bd8cb2c9aa", size = 5350247, upload-time = "2026-09-15T23:36:05.739Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/13/50/c9b84eb106d0db420b9878dac0a386c5791726f127ce20b06897f6e3a1e9/virtualenv-21.7.13.tar.gz", hash = "sha256:0355558b6f33619aab31347e43643b0ebc97f61ea3acf617b2b69e1f8a843d11", size = 5360306, upload-time = "2026-09-18T04:35:49.354Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/85/7c/b75957b57ef372d84628b1099c4a530b3c361878cc6c54a8dfc5071d371a/virtualenv-21.7.10-py3-none-any.whl", hash = "sha256:d7ac9669ba19e675ffadbb97fe8e887ef92fb1743fe9a0032be62b947657327a", size = 5324900, upload-time = "2026-09-15T23:36:03.751Z" },
+    { url = "https://files.pythonhosted.org/packages/9a/ce/e74453531b0c49a58d0e8a4f9bab4495705859fee4a4f7de27d58f4a791a/virtualenv-21.7.13-py3-none-any.whl", hash = "sha256:1bea5af7463f59c4719db48fe739579a2a4f569c96f26c086edda85c96da9f59", size = 5328680, upload-time = "2026-09-18T04:35:47.194Z" },
 ]
 
 [[package]]
