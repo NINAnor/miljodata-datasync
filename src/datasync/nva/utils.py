@@ -11,6 +11,41 @@ from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 from ..settings import log
 
 
+class NvaClient(RESTClient):
+    """NVA REST client with stable, bulk pagination defaults per endpoint."""
+
+    def paginate(self, path="", params=None, **kwargs):
+        params = params or {}
+        parts = path.split("/")
+
+        match parts:
+            case ["search", "resources"]:
+                params |= {"sort": "identifier:asc"}
+                kwargs["paginator"] = JSONLinkPaginator(
+                    next_url_path="nextSearchAfterResults"
+                )
+            case ["cristin", "organization", _, "persons"]:
+                params |= {"sort": "id asc"}
+            case ["cristin", "organization", _, "projects"]:
+                params |= {"sort": "start_date asc"}
+
+        match parts:
+            case ["search", "resources"]:
+                params |= {"size": 250}
+            case ["cristin", "organization", _, "persons" | "projects"]:
+                params |= {"results": 1000}
+
+        return super().paginate(path, params=params, **kwargs)
+
+
+def nva_client(base_url):
+    return NvaClient(
+        base_url=base_url,
+        paginator=JSONLinkPaginator(next_url_path="nextResults"),
+        data_selector="hits",
+    )
+
+
 def get_nva_resources(
     client: RESTClient,
     search_params: dict[str, list[str]],
@@ -63,11 +98,7 @@ def nva_search_source(
 
     # For more parameters: https://swagger-ui.nva.unit.no/
     """
-    client = RESTClient(
-        base_url=base_url,
-        paginator=JSONLinkPaginator(next_url_path="nextResults"),
-        data_selector="hits",
-    )
+    client = nva_client(base_url)
 
     yield dlt.resource(
         get_nva_resources(client, kwargs),

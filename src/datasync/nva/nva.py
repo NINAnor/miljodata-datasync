@@ -3,12 +3,12 @@ import datetime
 import dlt
 import typer
 from dlt.sources.helpers.rest_client import RESTClient
-from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
 from ..settings import env, log
 from .utils import (
     create_pipeline,
     create_s3_credentials,
+    nva_client,
     setup_duckdb_s3_connection,
     write_timestamp,
 )
@@ -74,11 +74,7 @@ def nva(
     categories: bool = False,
     funding_sources: bool = False,
 ):
-    client = RESTClient(
-        base_url=base_url,
-        paginator=JSONLinkPaginator(next_url_path="nextResults"),
-        data_selector="hits",
-    )
+    client = nva_client(base_url)
 
     if resources:
         yield dlt.resource(
