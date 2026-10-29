@@ -8,7 +8,7 @@ on:
 permissions: {}
 
 jobs:
-  pre-commit:
+  prek:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -19,7 +19,7 @@ jobs:
           persist-credentials: false
 
       - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # v8.0.0
 
       - name: Install dependencies
         run: uv sync --frozen
@@ -27,5 +27,8 @@ jobs:
       - name: Install deptry
         run: uv tool install deptry
 
-      - name: Run pre-commit
-        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+      - name: Install prek
+        run: uv tool install prek
+
+      - name: Run prek
+        run: prek run --all-files --show-diff-on-failure

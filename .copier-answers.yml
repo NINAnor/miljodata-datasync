@@ -1,7 +1,7 @@
 # Changes here will be overwritten by Copier
-_commit: v0.2.6
+_commit: v0.3.0
 _src_path: gh:ninanor/python-template
-author_name: ninanor
+author_name: Niccolò Cantù
 debug: false
 default_branch_name: main
 docker: false
