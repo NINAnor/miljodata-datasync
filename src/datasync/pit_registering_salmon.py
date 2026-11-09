@@ -68,7 +68,7 @@ def hex_to_decimal_tag(hex_tag):
         # combine with proper formatting
         iso_decimal = f"{left_decimal}.{right_decimal:012d}"
         return iso_decimal
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
