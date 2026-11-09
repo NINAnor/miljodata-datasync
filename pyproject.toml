@@ -27,9 +27,9 @@ dependencies = [
   "structlog>=25.5.0",
   "rich>=14.2.0",
   "typer>=0.20.0",
-  "pygeometa[gbif] @ git+https://github.com/nicokant/pygeometa@gbif-eml#egg=pygeometa",
+  "pygeometa[gbif] @ git+https://github.com/geopython/pygeometa@250498082ddf098f61c8ca3fb0e40402753c9191#egg=pygeometa",
   "orjson>=3.11.4",
-  "duckdb>=1.5.0,<1.5.3",  # https://github.com/isaacbrodsky/duckdb-zipfs/issues/70
+  "duckdb<2.0.0",
   "lxml>=6.1.0",
   "openpyxl>=3.1.5",
   "python-calamine>=0.6.1",
@@ -52,7 +52,7 @@ description = ""
 license = "GPL-3.0+"
 name = "datasync"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14,<3.15"
 version = "0.1.0"
 
 [project.scripts]
