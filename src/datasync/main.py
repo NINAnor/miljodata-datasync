@@ -7,6 +7,7 @@ import typer
 from . import (
     coat,
     dms,
+    doffin,
     gbif_backbone,
     grass,
     mediebank,
@@ -24,6 +25,7 @@ app = typer.Typer(
 app.add_typer(coat.app, name="coat")
 app.add_typer(nva.app, name="nva")
 app.add_typer(ubw.app, name="ubw")
+app.add_typer(doffin.app, name="doffin")
 app.add_typer(dms.app, name="dms")
 app.add_typer(ninagen.app, name="ninagen")
 app.add_typer(pit_registering_salmon.app, name="pit-registering-salmon")
