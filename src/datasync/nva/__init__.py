@@ -3,6 +3,7 @@
 import typer
 
 from . import (
+    get_employee_nva_ids,
     nva,
     nva_filter_resources,
     nva_get_publications_per_researcher,
@@ -24,3 +25,8 @@ app.command(help="Fetch and filter NVA data with flexible search parameters")(
 app.command(help="Fetch publications for researchers at NINA")(
     nva_get_publications_per_researcher.get_pubs_per_researcher
 )
+
+app.command(
+    name="get-employee-nva-ids",
+    help="Find the NVA id of every NINA employee by searching the NVA person API",
+)(get_employee_nva_ids.match_employees_to_s3)
